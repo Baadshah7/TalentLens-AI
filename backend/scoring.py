@@ -242,7 +242,7 @@ def compute_semantic_fit_score(candidate_id: int, job_desc: str, db: Session) ->
     return scaled
 
 def score_candidate(candidate_id: int, job_id: int, db: Session) -> models.ScreeningResult:
-    """Calculates all candidate sub-scores and weights overall score, writing results to DB."""
+    """Calculates all candidate sub-scores and weights overall score, writing results and structured explanation metadata to DB."""
     # Fetch job and candidate
     job = db.query(models.Job).filter(models.Job.Job_ID == job_id).first()
     candidate = db.query(models.Candidate).filter(models.Candidate.Candidate_ID == candidate_id).first()
@@ -252,7 +252,6 @@ def score_candidate(candidate_id: int, job_id: int, db: Session) -> models.Scree
         
     # Handle unparsed or failed parses cleanly
     if candidate.Processing_Status == "Failed":
-        # Write zeros
         res = db.query(models.ScreeningResult).filter(models.ScreeningResult.Candidate_ID == candidate_id).first()
         if not res:
             res = models.ScreeningResult(Candidate_ID=candidate_id, Job_ID=job_id)
@@ -265,6 +264,13 @@ def score_candidate(candidate_id: int, job_id: int, db: Session) -> models.Scree
         res.Completeness_Score = 0.0
         res.Semantic_Score = 0.0
         res.Overall_Score = 0.0
+        res.Explanation = {
+            "strengths": [],
+            "gaps": ["File is corrupted or parsing failed."],
+            "recommendation": "Low Match",
+            "missing_skills": job.Required_Skills
+        }
+        res.Confidence_Level = "Low"
         db.commit()
         return res
 
@@ -296,7 +302,6 @@ def score_candidate(candidate_id: int, job_id: int, db: Session) -> models.Scree
     # 8. Query job weights, falling back to defaults
     weights = {w.Category: w.Weight for w in job.weights}
     
-    # Map sub-scores to weight categories
     sub_scores = {
         "required_skills": req_score,
         "preferred_skills": pref_score,
@@ -320,19 +325,129 @@ def score_candidate(candidate_id: int, job_id: int, db: Session) -> models.Scree
     if total_weight > 0:
         overall_score = overall_score / total_weight
     else:
-        # Fallback to even weight split
         overall_score = sum(sub_scores.values()) / len(sub_scores)
         
-    # Ensure score is rounded to two decimal places
     overall_score = round(overall_score, 2)
+
+    # 9. Explainable AI & Confidence Calculations
+    strengths = []
+    gaps = []
     
+    # Skills alignment strengths/gaps
+    if req_score >= 85.0:
+        strengths.append("Strong skill alignment matching required position technologies.")
+    
+    candidate_skills = db.query(models.CandidateSkill).filter(models.CandidateSkill.Candidate_ID == candidate_id).all()
+    c_skills_lower = [cs.Skill.lower() for cs in candidate_skills]
+    
+    # Calculate exact vs inferred skills count
+    exact_count = 0
+    inferred_count = 0
+    missing_skills = []
+    
+    taxonomy = load_taxonomy()
+    
+    for req in job.Required_Skills:
+        req_l = req.lower()
+        if req_l in c_skills_lower:
+            exact_count += 1
+        else:
+            # Check taxonomy or semantic match
+            matched = False
+            # Check related keywords
+            related_keywords = []
+            for parent, children in taxonomy.items():
+                if parent.lower() == req_l:
+                    related_keywords = [c.lower() for c in children]
+                    break
+                elif req_l in [c.lower() for c in children]:
+                    related_keywords = [parent.lower()] + [c.lower() for c in children if c.lower() != req_l]
+                    break
+            
+            for keyword in related_keywords:
+                if keyword in c_skills_lower:
+                    inferred_count += 1
+                    matched = True
+                    break
+                    
+            if not matched:
+                # Check semantic
+                job_skill_vec = get_embedding(req, db)
+                best_sim = 0.0
+                for cs in candidate_skills:
+                    cs_vec = get_embedding(cs.Skill, db)
+                    sim = cosine_similarity(job_skill_vec, cs_vec)
+                    if sim > best_sim:
+                        best_sim = sim
+                if best_sim >= SEMANTIC_THRESHOLD_SKILL:
+                    inferred_count += 1
+                    matched = True
+            
+            if not matched:
+                missing_skills.append(req)
+                
+    if missing_skills:
+        gaps.append(f"Missing required skills: {', '.join(missing_skills)}")
+        
+    # Experience strengths/gaps
+    if job.Min_Experience > 0:
+        if experience_score >= 100.0:
+            strengths.append(f"Fully matches required work experience duration ({relevant_months} months).")
+        else:
+            gaps.append(f"Relevant experience is {relevant_months} months, below the required {job.Min_Experience * 12} months.")
+            
+    # Education strengths/gaps
+    if job.Min_Education:
+        if education_score >= 100.0:
+            strengths.append("Education degree matches or exceeds required level.")
+        else:
+            gaps.append(f"Highest degree level does not meet the minimum '{job.Min_Education}' requirement.")
+            
+    # Project strengths/gaps
+    if project_score >= 80.0:
+        strengths.append("Highly relevant projects showing applied technical knowledge.")
+        
+    # Certification strengths/gaps
+    if job.Certifications:
+        if certification_score >= 100.0:
+            strengths.append("Possesses required certifications.")
+        else:
+            gaps.append("Missing required certifications.")
+
+    # Deriving recommendation label based on thresholds
+    strong_th = job.Strong_Threshold or 85.0
+    good_th = job.Good_Threshold or 70.0
+    potential_th = job.Potential_Threshold or 50.0
+    
+    if overall_score >= strong_th:
+        recommendation_label = "Strong Match"
+    elif overall_score >= good_th:
+        recommendation_label = "Good Match"
+    elif overall_score >= potential_th:
+        recommendation_label = "Potential Match"
+    else:
+        recommendation_label = "Low Match"
+
+    # Derive AI Confidence level
+    total_matched_skills = exact_count + inferred_count
+    if total_matched_skills == 0:
+        confidence_level = "Low"
+    else:
+        exact_ratio = exact_count / total_matched_skills
+        if exact_ratio >= 0.70:
+            confidence_level = "High"
+        elif exact_ratio >= 0.40:
+            confidence_level = "Medium"
+        else:
+            confidence_level = "Low"
+
     # Write to ScreeningResult table
     res = db.query(models.ScreeningResult).filter(models.ScreeningResult.Candidate_ID == candidate_id).first()
     if not res:
         res = models.ScreeningResult(Candidate_ID=candidate_id, Job_ID=job_id)
         db.add(res)
         
-    res.Skill_Score = round((req_score + pref_score) / 2.0, 2) # aggregate skill scores for storage
+    res.Skill_Score = round((req_score + pref_score) / 2.0, 2)
     res.Experience_Score = round(experience_score, 2)
     res.Education_Score = round(education_score, 2)
     res.Project_Score = round(project_score, 2)
@@ -340,6 +455,13 @@ def score_candidate(candidate_id: int, job_id: int, db: Session) -> models.Scree
     res.Completeness_Score = round(completeness_score, 2)
     res.Semantic_Score = round(semantic_fit_score, 2)
     res.Overall_Score = overall_score
+    res.Explanation = {
+        "strengths": strengths,
+        "gaps": gaps,
+        "recommendation": recommendation_label,
+        "missing_skills": missing_skills
+    }
+    res.Confidence_Level = confidence_level
     
     db.commit()
     db.refresh(res)

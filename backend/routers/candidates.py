@@ -167,7 +167,7 @@ def upload_resumes(
             
             if not is_corrupted:
                 try:
-                    # Run full parser
+                    # Run full parser (this automatically triggers sanitize_text internally)
                     parsed_data = parse_resume_full(file_path, filename)
                     
                     # Store relational data
@@ -177,7 +177,7 @@ def upload_resumes(
                     candidate.Processing_Status = "Parsed"
                     db.commit()
                     
-                    # Trigger Scoring Engine
+                    # Trigger Scoring Engine (calculates weights, confidence, explanations)
                     score_res = score_candidate(candidate.Candidate_ID, job_id, db)
                     overall_score = score_res.Overall_Score
                     
@@ -236,10 +236,27 @@ def get_candidates_by_job(
         raise HTTPException(status_code=404, detail="Job description not found")
         
     candidates = db.query(models.Candidate).filter(models.Candidate.Job_ID == job_id).all()
+    
+    response_list = []
     for c in candidates:
         res = db.query(models.ScreeningResult).filter(models.ScreeningResult.Candidate_ID == c.Candidate_ID).first()
-        c.Overall_Score = res.Overall_Score if res else None
-    return candidates
+        score = res.Overall_Score if res else None
+        
+        is_blind = job.Blind_Mode and not c.Is_Identity_Revealed
+        response_list.append({
+            "Candidate_ID": c.Candidate_ID,
+            "Name": f"Candidate #{c.Candidate_ID}" if is_blind else c.Name,
+            "Email": "[HIDDEN]" if is_blind else c.Email,
+            "Phone": "[HIDDEN]" if is_blind else c.Phone,
+            "Location": "[HIDDEN]" if is_blind else c.Location,
+            "Resume_File_Path": c.Resume_File_Path,
+            "Upload_Date": c.Upload_Date,
+            "Processing_Status": c.Processing_Status,
+            "Job_ID": c.Job_ID,
+            "Overall_Score": score,
+            "Is_Identity_Revealed": c.Is_Identity_Revealed
+        })
+    return response_list
 
 @router.get("/{candidate_id}/detail", response_model=schemas.CandidateDetailResponse)
 def get_candidate_details(
@@ -251,7 +268,27 @@ def get_candidate_details(
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
         
-    return candidate
+    job = db.query(models.Job).filter(models.Job.Job_ID == candidate.Job_ID).first()
+    is_blind = job.Blind_Mode and not candidate.Is_Identity_Revealed
+
+    return {
+        "Candidate_ID": candidate.Candidate_ID,
+        "Name": f"Candidate #{candidate.Candidate_ID}" if is_blind else candidate.Name,
+        "Email": "[HIDDEN]" if is_blind else candidate.Email,
+        "Phone": "[HIDDEN]" if is_blind else candidate.Phone,
+        "Location": "[HIDDEN]" if is_blind else candidate.Location,
+        "Resume_File_Path": candidate.Resume_File_Path,
+        "Upload_Date": candidate.Upload_Date,
+        "Processing_Status": candidate.Processing_Status,
+        "Job_ID": candidate.Job_ID,
+        "Is_Identity_Revealed": candidate.Is_Identity_Revealed,
+        "skills": candidate.skills,
+        "experiences": candidate.experiences,
+        "educations": candidate.educations,
+        "projects": candidate.projects,
+        "certifications": candidate.certifications,
+        "screening_results": candidate.screening_results
+    }
 
 @router.post("/{candidate_id}/rescore", response_model=schemas.ScreeningResultResponse)
 def rescore_candidate_endpoint(
@@ -280,3 +317,46 @@ def rescore_candidate_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Re-scoring operation failed: {str(e)}"
         )
+
+@router.post("/{candidate_id}/reveal", response_model=schemas.CandidateDetailResponse)
+def reveal_candidate_identity(
+    candidate_id: int,
+    request: schemas.RevealRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    candidate = db.query(models.Candidate).filter(models.Candidate.Candidate_ID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+        
+    candidate.Is_Identity_Revealed = True
+    db.commit()
+    db.refresh(candidate)
+    
+    # Log reveal action with reason
+    details = f"Recruiter revealed identity of Candidate #{candidate_id} ('{candidate.Name}'). Reason: {request.Reason}"
+    log_action(
+        db,
+        user_id=current_user.User_ID,
+        action="Candidate Identity Revealed",
+        details=details
+    )
+    
+    return {
+        "Candidate_ID": candidate.Candidate_ID,
+        "Name": candidate.Name,
+        "Email": candidate.Email,
+        "Phone": candidate.Phone,
+        "Location": candidate.Location,
+        "Resume_File_Path": candidate.Resume_File_Path,
+        "Upload_Date": candidate.Upload_Date,
+        "Processing_Status": candidate.Processing_Status,
+        "Job_ID": candidate.Job_ID,
+        "Is_Identity_Revealed": candidate.Is_Identity_Revealed,
+        "skills": candidate.skills,
+        "experiences": candidate.experiences,
+        "educations": candidate.educations,
+        "projects": candidate.projects,
+        "certifications": candidate.certifications,
+        "screening_results": candidate.screening_results
+    }

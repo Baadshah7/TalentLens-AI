@@ -35,6 +35,12 @@ class Job(Base):
     Created_By = Column(Integer, ForeignKey("users.User_ID"), nullable=False)
     Created_At = Column(DateTime, default=datetime.datetime.utcnow)
 
+    # Phase 3 Configurable Thresholds & Blind Screening
+    Blind_Mode = Column(Boolean, default=False)
+    Strong_Threshold = Column(Float, default=85.0)
+    Good_Threshold = Column(Float, default=70.0)
+    Potential_Threshold = Column(Float, default=50.0)
+
     # Relationships
     creator = relationship("User", back_populates="jobs")
     weights = relationship("JobSkillWeight", back_populates="job", cascade="all, delete-orphan")
@@ -63,6 +69,9 @@ class Candidate(Base):
     Upload_Date = Column(DateTime, default=datetime.datetime.utcnow)
     Processing_Status = Column(String, default="Pending") # Pending, Processing, Parsed, Failed
     Job_ID = Column(Integer, ForeignKey("jobs.Job_ID", ondelete="CASCADE"), nullable=False)
+
+    # Phase 3 Blind Mode Override State
+    Is_Identity_Revealed = Column(Boolean, default=False)
 
     # Relationships
     job = relationship("Job", back_populates="candidates")
@@ -148,6 +157,10 @@ class ScreeningResult(Base):
     Completeness_Score = Column(Float, default=0.0)
     Semantic_Score = Column(Float, default=0.0)
     Overall_Score = Column(Float, default=0.0)
+
+    # Phase 3 Explainability & Match confidence
+    Explanation = Column(JSON, nullable=True) # {"strengths": [], "gaps": [], "recommendation": "", "missing_skills": []}
+    Confidence_Level = Column(String, default="High") # High, Medium, Low
 
     # Relationships
     candidate = relationship("Candidate", back_populates="screening_results")

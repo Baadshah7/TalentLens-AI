@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft, User, Mail, Phone, MapPin, Briefcase, FileText, CheckCircle2, XCircle, Award, ShieldAlert, Sparkles, RefreshCw, Layers } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, MapPin, Briefcase, FileText, CheckCircle2, XCircle, Award, ShieldAlert, Sparkles, RefreshCw, Layers, Scale, Eye } from 'lucide-react';
 
 const CandidateDetail = () => {
   const { id } = useParams();
@@ -9,6 +9,9 @@ const CandidateDetail = () => {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [rescoring, setRescoring] = useState(false);
+  const [revealing, setRevealing] = useState(false);
+  const [revealReason, setRevealReason] = useState('');
+  const [showRevealModal, setShowRevealModal] = useState(false);
   const [error, setError] = useState('');
 
   const fetchCandidateData = async () => {
@@ -17,7 +20,6 @@ const CandidateDetail = () => {
       const res = await axios.get(`/candidates/${id}/detail`);
       setCandidate(res.data);
       
-      // Fetch job details to compare
       const jobRes = await axios.get(`/jobs/${res.data.Job_ID}`);
       setJob(jobRes.data);
       
@@ -45,6 +47,28 @@ const CandidateDetail = () => {
       alert('Failed to re-score candidate.');
     } finally {
       setRescoring(false);
+    }
+  };
+
+  const handleReveal = async (e) => {
+    e.preventDefault();
+    if (!revealReason.trim()) {
+      alert("Please provide a valid reason for identity disclosure.");
+      return;
+    }
+
+    setRevealing(true);
+    try {
+      const res = await axios.post(`/candidates/${id}/reveal`, { Reason: revealReason });
+      setCandidate(res.data);
+      setShowRevealModal(false);
+      setRevealReason('');
+      alert('Candidate identity disclosed successfully.');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to reveal candidate identity.');
+    } finally {
+      setRevealing(false);
     }
   };
 
@@ -80,8 +104,12 @@ const CandidateDetail = () => {
     Certification_Score: 0,
     Completeness_Score: 0,
     Semantic_Score: 0,
-    Overall_Score: 0
+    Overall_Score: 0,
+    Explanation: { strengths: [], gaps: [], recommendation: 'Low Match', missing_skills: [] },
+    Confidence_Level: 'Low'
   };
+
+  const explanation = scoreInfo.Explanation || { strengths: [], gaps: [], recommendation: 'Low Match', missing_skills: [] };
 
   const getScoreColor = (score) => {
     if (score >= 70) return 'text-emerald-400 bg-emerald-950/40 border-emerald-900';
@@ -109,28 +137,47 @@ const CandidateDetail = () => {
     <div className="space-y-6 p-6">
       {/* Navigation & Actions */}
       <div className="flex justify-between items-center">
-        <Link to="/upload" className="inline-flex items-center space-x-2 text-sm text-brand-400 hover:text-brand-300">
+        <Link to={`/upload?jobId=${candidate.Job_ID}`} className="inline-flex items-center space-x-2 text-sm text-brand-400 hover:text-brand-300">
           <ArrowLeft className="h-4 w-4" />
-          <span>Back to Uploads</span>
+          <span>Back to Applicants</span>
         </Link>
 
-        <button
-          onClick={handleRescore}
-          disabled={rescoring || candidate.Processing_Status === 'Failed'}
-          className="flex items-center space-x-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-slate-100 rounded-xl text-xs font-semibold transition disabled:opacity-50"
-        >
-          {rescoring ? (
-            <>
-              <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1" />
-              <span>Calculating...</span>
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-3.5 w-3.5 text-indigo-400 mr-1" />
-              <span>Re-score Candidate</span>
-            </>
+        <div className="flex items-center space-x-3">
+          {/* Persistent Ethical Screen active indicator */}
+          <div className="flex items-center space-x-2 text-[10px] text-emerald-400 bg-emerald-950/20 border border-emerald-900/60 px-3 py-1.5 rounded-xl font-bold">
+            <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
+            <span>Ethical Screening Verified Active</span>
+          </div>
+
+          {/* Reveal Identity Action */}
+          {job?.Blind_Mode && !candidate.Is_Identity_Revealed && (
+            <button
+              onClick={() => setShowRevealModal(true)}
+              className="flex items-center space-x-2 px-3 py-1.5 bg-indigo-900/60 hover:bg-indigo-900 border border-indigo-700 hover:border-indigo-600 text-indigo-200 rounded-xl text-xs font-semibold transition"
+            >
+              <Eye className="h-3.5 w-3.5 mr-1" />
+              <span>Reveal Identity</span>
+            </button>
           )}
-        </button>
+
+          <button
+            onClick={handleRescore}
+            disabled={rescoring || candidate.Processing_Status === 'Failed'}
+            className="flex items-center space-x-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-slate-100 rounded-xl text-xs font-semibold transition disabled:opacity-50"
+          >
+            {rescoring ? (
+              <>
+                <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1" />
+                <span>Calculating...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-3.5 w-3.5 text-indigo-400 mr-1" />
+                <span>Re-score Candidate</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Main Grid Layout */}
@@ -147,7 +194,11 @@ const CandidateDetail = () => {
             </div>
             
             <h3 className="text-xl font-bold text-slate-100">{candidate.Name}</h3>
-            <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-1 block">Applicant</span>
+            {job?.Blind_Mode && !candidate.Is_Identity_Revealed ? (
+              <span className="text-[9px] text-indigo-400 bg-indigo-950/40 border border-indigo-900 px-2 py-0.5 rounded-full font-bold inline-block mt-1 uppercase">Anonymized Candidate</span>
+            ) : (
+              <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-1 block">Applicant Profile</span>
+            )}
             
             <div className="mt-6 space-y-3.5 text-left border-t border-slate-900/60 pt-5 text-xs text-slate-400">
               <div className="flex items-center space-x-3">
@@ -169,24 +220,88 @@ const CandidateDetail = () => {
             </div>
           </div>
 
-          {/* Card: Scoring Wheel / Value */}
-          <div className="glass-panel border border-slate-800/80 rounded-2xl p-6 flex flex-col justify-between text-center relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-[150px] h-[150px] bg-brand-600/5 rounded-full blur-3xl pointer-events-none"></div>
-            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 text-left">Match Score</h4>
+          {/* Card: Explainable AI Result Summary */}
+          <div className="glass-panel border border-slate-800/80 rounded-2xl p-6 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-[150px] h-[150px] bg-indigo-600/5 rounded-full blur-3xl pointer-events-none"></div>
             
-            <div className="my-2">
+            <div className="flex justify-between items-start mb-4">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">AI Evaluation</h4>
+              <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border ${
+                scoreInfo.Confidence_Level === 'High' 
+                  ? 'bg-emerald-950/40 border-emerald-900/50 text-emerald-400' 
+                  : scoreInfo.Confidence_Level === 'Medium' 
+                    ? 'bg-amber-950/40 border-amber-900/50 text-amber-400' 
+                    : 'bg-rose-950/40 border-rose-900/50 text-rose-400'
+              }`}>
+                {scoreInfo.Confidence_Level} AI Confidence
+              </span>
+            </div>
+            
+            <div className="text-center my-4">
               <div className={`inline-flex px-4 py-2 border rounded-2xl text-4xl font-extrabold ${getScoreColor(scoreInfo.Overall_Score)}`}>
                 {scoreInfo.Overall_Score}%
               </div>
-              <p className="text-xs text-slate-400 mt-3.5 max-w-[200px] mx-auto leading-relaxed">
-                {scoreInfo.Overall_Score >= 70 ? 'Strong candidate match based on job criteria.' : scoreInfo.Overall_Score >= 50 ? 'Potential candidate. Review sub-scores below.' : 'Low candidate match.'}
-              </p>
+              <p className="text-[11px] font-bold text-slate-300 mt-3">{explanation.recommendation}</p>
+            </div>
+
+            <div className="border-t border-slate-800/60 pt-4 space-y-3.5 text-xs">
+              <div>
+                <h5 className="font-bold text-slate-300 mb-1.5 flex items-center space-x-1 text-[11px]">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Strengths</span>
+                </h5>
+                {explanation.strengths.length === 0 ? (
+                  <p className="text-[10px] text-slate-500 italic">No significant strengths detected.</p>
+                ) : (
+                  <ul className="list-disc pl-4 text-slate-400 space-y-1 text-[10px] leading-relaxed">
+                    {explanation.strengths.map((str, idx) => (
+                      <li key={idx}>{str}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div>
+                <h5 className="font-bold text-slate-300 mb-1.5 flex items-center space-x-1 text-[11px]">
+                  <XCircle className="h-3.5 w-3.5 text-rose-400" />
+                  <span>Key Gaps</span>
+                </h5>
+                {explanation.gaps.length === 0 ? (
+                  <p className="text-[10px] text-slate-500 italic">No significant gaps detected.</p>
+                ) : (
+                  <ul className="list-disc pl-4 text-rose-300/80 space-y-1 text-[10px] leading-relaxed">
+                    {explanation.gaps.map((gap, idx) => (
+                      <li key={idx}>{gap}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Right Column: Details Lists */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Card: Skill Gap Analysis */}
+          {explanation.missing_skills && explanation.missing_skills.length > 0 && (
+            <div className="p-4 bg-indigo-950/20 border border-indigo-900/60 rounded-2xl space-y-2">
+              <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center space-x-1.5">
+                <Scale className="h-4 w-4" />
+                <span>Skill Gap Analysis</span>
+              </h4>
+              <p className="text-[10px] text-slate-400">
+                The candidate is missing the following required skills specified in the job parameters:
+              </p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {explanation.missing_skills.map((skill, idx) => (
+                  <span key={idx} className="text-[9px] bg-rose-950/40 border border-rose-900/60 text-rose-400 px-2 py-0.5 rounded-md font-semibold">
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Card: Detailed Sub-Scores progress */}
           <div className="glass-panel border border-slate-800/80 rounded-2xl p-6">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-6">Sub-Score Breakdown</h4>
@@ -227,7 +342,6 @@ const CandidateDetail = () => {
                 <div className="space-y-4 border-l border-slate-800 pl-4 ml-2">
                   {candidate.experiences.map((exp, idx) => (
                     <div key={idx} className="relative space-y-1">
-                      {/* Timeline dot */}
                       <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-indigo-500" />
                       
                       <div className="flex justify-between items-start">
@@ -273,7 +387,7 @@ const CandidateDetail = () => {
                         </span>
                       </div>
                       {sk.Evidence_Text && (
-                        <p className="text-[10px] text-slate-500 italic truncate" title={sk.Evidence_Text}>
+                        <p className="text-[10px] text-slate-500 italic leading-relaxed" title={sk.Evidence_Text}>
                           Evidence: "{sk.Evidence_Text}"
                         </p>
                       )}
@@ -370,6 +484,54 @@ const CandidateDetail = () => {
         </div>
 
       </div>
+
+      {/* Identity Disclosure Reveal Reason Modal */}
+      {showRevealModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="space-y-1">
+              <h3 className="text-md font-bold text-slate-100 flex items-center space-x-2">
+                <Eye className="h-5 w-5 text-indigo-400" />
+                <span>Disclose Candidate Identity</span>
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                You are about to reveal this candidate's real name and contact details. This action will be logged in the permanent compliance audit trail.
+              </p>
+            </div>
+            
+            <form onSubmit={handleReveal} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Justification Reason</label>
+                <textarea
+                  value={revealReason}
+                  onChange={(e) => setRevealReason(e.target.value)}
+                  placeholder="e.g. Applicant matches required skill scores; disclosing details to invite for technical interview."
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-slate-100 outline-none transition text-xs min-h-[80px]"
+                  required
+                />
+              </div>
+              
+              <div className="flex justify-end space-x-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => { setShowRevealModal(false); setRevealReason(''); }}
+                  className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-slate-300 rounded-xl text-xs transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={revealing}
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-slate-100 rounded-xl text-xs font-semibold transition disabled:opacity-50"
+                >
+                  {revealing ? 'Disclosing...' : 'Confirm Reveal'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

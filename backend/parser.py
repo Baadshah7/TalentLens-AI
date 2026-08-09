@@ -5,6 +5,7 @@ import pdfplumber
 import docx
 import spacy
 from typing import Dict, Any, List, Tuple, Optional
+from ethical import sanitize_text
 
 # Load spaCy model
 try:
@@ -116,7 +117,7 @@ def extract_text(file_path: str) -> str:
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             text = f.read()
             
-    return text
+    return sanitize_text(text)
 
 def extract_contact_info(text: str) -> Tuple[Optional[str], Optional[str]]:
     """Extracts email and phone using regex."""

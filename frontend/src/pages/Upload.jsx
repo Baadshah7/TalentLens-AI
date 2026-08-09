@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { Upload, Briefcase, FileText, CheckCircle2, XCircle, AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
+import { Upload, Briefcase, FileText, CheckCircle2, XCircle, AlertCircle, RefreshCw, Trash2, ShieldAlert, Sparkles, Scale } from 'lucide-react';
 
 const UploadPage = () => {
   const [jobs, setJobs] = useState([]);
@@ -16,12 +16,15 @@ const UploadPage = () => {
   const [uploadQueue, setUploadQueue] = useState([]);
   const fileInputRef = useRef(null);
 
+  // Phase 3 selection state
+  const [selectedCandidates, setSelectedCandidates] = useState([]);
+
   const fetchJobs = async () => {
     try {
       setJobsLoading(true);
       const res = await axios.get('/jobs/');
       setJobs(res.data);
-      if (res.data.length > 0) {
+      if (res.data.length > 0 && !selectedJobId) {
         setSelectedJobId(res.data[0].Job_ID.toString());
       }
     } catch (err) {
@@ -49,8 +52,40 @@ const UploadPage = () => {
   }, []);
 
   useEffect(() => {
+    setSelectedCandidates([]);
     fetchCandidates();
   }, [selectedJobId]);
+
+  const selectedJob = jobs.find(j => j.Job_ID === Number(selectedJobId));
+
+  const toggleBlindMode = async () => {
+    if (!selectedJob) return;
+    try {
+      const updatedJob = {
+        Job_Title: selectedJob.Job_Title,
+        Department: selectedJob.Department,
+        Description: selectedJob.Description,
+        Required_Skills: selectedJob.Required_Skills,
+        Preferred_Skills: selectedJob.Preferred_Skills,
+        Min_Experience: selectedJob.Min_Experience,
+        Min_Education: selectedJob.Min_Education,
+        Certifications: selectedJob.Certifications,
+        Job_Type: selectedJob.Job_Type,
+        Location: selectedJob.Location,
+        Weights: selectedJob.weights.reduce((acc, curr) => ({ ...acc, [curr.Category]: curr.Weight }), {}),
+        Blind_Mode: !selectedJob.Blind_Mode,
+        Strong_Threshold: selectedJob.Strong_Threshold,
+        Good_Threshold: selectedJob.Good_Threshold,
+        Potential_Threshold: selectedJob.Potential_Threshold
+      };
+      await axios.put(`/jobs/${selectedJobId}`, updatedJob);
+      await fetchJobs();
+      await fetchCandidates();
+    } catch (err) {
+      console.error("Failed to toggle blind mode", err);
+      alert("Failed to toggle blind mode.");
+    }
+  };
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -69,21 +104,22 @@ const UploadPage = () => {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-      let error = null;
-
+      const ext = '.' + file.name.split('.').pop().toLowerCase();
+      
+      let error = '';
       if (!validExtensions.includes(ext)) {
-        error = 'Invalid type. Only PDF, DOCX, and TXT files are accepted.';
+        error = 'Invalid extension (PDF, DOCX, TXT only)';
       } else if (file.size > maxSizeBytes) {
-        error = 'Oversized file. Maximum limit is 10MB.';
+        error = 'Oversized (Max 10MB)';
       }
 
       newQueue.push({
-        file,
+        id: Math.random().toString(),
+        file: file,
         name: file.name,
         size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
-        error,
-        status: error ? 'Rejected' : 'Queued'
+        status: error ? 'error' : 'queued',
+        error: error
       });
     }
 
@@ -94,7 +130,6 @@ const UploadPage = () => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       processFiles(e.dataTransfer.files);
     }
@@ -106,81 +141,104 @@ const UploadPage = () => {
     }
   };
 
+  const removeQueueItem = (id) => {
+    setUploadQueue(prev => prev.filter(item => item.id !== id));
+  };
+
   const onButtonClick = () => {
     fileInputRef.current.click();
   };
 
-  const clearQueueItem = (idx) => {
-    setUploadQueue(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  const clearQueue = () => {
-    setUploadQueue([]);
-  };
-
-  const handleUploadSubmit = async () => {
+  const uploadQueuedFiles = async () => {
     if (!selectedJobId) {
       alert('Please select a target job position first.');
       return;
     }
 
-    const itemsToUpload = uploadQueue.filter(item => item.status === 'Queued');
-    if (itemsToUpload.length === 0) {
-      alert('No valid files in the queue to upload.');
-      return;
-    }
+    const eligible = uploadQueue.filter(item => item.status === 'queued');
+    if (eligible.length === 0) return;
 
     setUploading(true);
-    const formData = new FormData();
-    itemsToUpload.forEach(item => {
-      formData.append('files', item.file);
-    });
 
     try {
+      const formData = new FormData();
+      eligible.forEach(item => {
+        formData.append('files', item.file);
+      });
+
       const response = await axios.post(`/candidates/upload/${selectedJobId}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
 
-      // Map response results back to our queue
-      const results = response.data.results;
-      const updatedQueue = [...uploadQueue];
+      const results = response.data.results || [];
       
-      results.forEach(res => {
-        const queueIdx = updatedQueue.findIndex(item => item.name === res.filename);
-        if (queueIdx !== -1) {
-          if (res.status === 'Uploaded') {
-            updatedQueue[queueIdx].status = 'Success';
-            updatedQueue[queueIdx].processing_status = res.processing_status;
-            updatedQueue[queueIdx].error = res.error; // Displays corruption warning
-          } else {
-            updatedQueue[queueIdx].status = 'Failed';
-            updatedQueue[queueIdx].error = res.error;
+      // Update upload queue item status
+      setUploadQueue(prev => {
+        return prev.map(item => {
+          const match = results.find(r => r.filename === item.name);
+          if (match) {
+            return {
+              ...item,
+              status: match.error ? 'error' : 'uploaded',
+              error: match.error || ''
+            };
           }
-        }
+          return item;
+        });
       });
 
-      setUploadQueue(updatedQueue);
+      // Clear successful items from queue
+      setTimeout(() => {
+        setUploadQueue(prev => prev.filter(item => item.status === 'error' || item.status === 'queued'));
+      }, 3000);
+
+      // Refresh applicant database list
       fetchCandidates();
+
     } catch (err) {
       console.error(err);
-      alert('Failed to upload resumes. Ensure files do not exceed payload restrictions.');
+      alert('Batch upload processing failure.');
     } finally {
       setUploading(false);
     }
   };
 
+  // Checkbox select toggle
+  const handleSelectCandidate = (candidateId) => {
+    setSelectedCandidates(prev => {
+      if (prev.includes(candidateId)) {
+        return prev.filter(id => id !== candidateId);
+      } else {
+        if (prev.length >= 4) {
+          alert("Comparison limit is capped at 4 candidates.");
+          return prev;
+        }
+        return [...prev, candidateId];
+      }
+    });
+  };
+
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight text-white">Resume Processing</h2>
-        <p className="text-sm text-slate-400 mt-1">Upload resumes in batch, perform size validations, and catalog applicants.</p>
+    <div className="p-6 space-y-6">
+      {/* Page Title */}
+      <div className="space-y-1">
+        <h2 className="text-xl font-bold text-slate-100 flex items-center space-x-2">
+          <Upload className="h-5 w-5 text-indigo-400" />
+          <span>Resume Ingestion & Screening</span>
+        </h2>
+        <p className="text-xs text-slate-400">
+          Upload resumes and calculate match scores dynamically based on position parameters.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Upload Zone & Queue */}
+        
+        {/* Left Column: Config Panel */}
         <div className="lg:col-span-1 space-y-6">
+          
+          {/* Target Position Selection card */}
           <div className="glass-panel border border-slate-800/80 rounded-2xl p-6 space-y-4">
             <h3 className="font-semibold text-slate-100 flex items-center space-x-2">
               <Briefcase className="h-4.5 w-4.5 text-brand-400" />
@@ -188,7 +246,10 @@ const UploadPage = () => {
             </h3>
             
             {jobsLoading ? (
-              <div className="text-xs text-slate-500">Loading roles...</div>
+              <div className="text-xs text-slate-500 flex items-center space-x-2">
+                <RefreshCw className="h-3 w-3 animate-spin text-slate-400" />
+                <span>Loading roles...</span>
+              </div>
             ) : jobs.length === 0 ? (
               <div className="text-xs text-amber-400">No active positions. Create a job first.</div>
             ) : (
@@ -201,6 +262,36 @@ const UploadPage = () => {
                   <option key={j.Job_ID} value={j.Job_ID}>{j.Job_Title} ({j.Department})</option>
                 ))}
               </select>
+            )}
+
+            {selectedJob && (
+              <div className="mt-4 border-t border-slate-800/80 pt-4 space-y-3.5">
+                {/* Blind Mode Toggle */}
+                <div className="flex justify-between items-center bg-slate-950/40 p-3 rounded-xl border border-slate-900">
+                  <div className="text-[11px] text-slate-400 pr-2">
+                    <div className="font-semibold text-slate-200">Blind Screening Mode</div>
+                    <div className="text-[10px]">Anonymize candidate names and contacts</div>
+                  </div>
+                  <button
+                    onClick={toggleBlindMode}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                      selectedJob.Blind_Mode ? 'bg-indigo-600' : 'bg-slate-800'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                        selectedJob.Blind_Mode ? 'translate-x-5' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Ethical compliance check */}
+                <div className="flex items-center space-x-2 text-[10px] text-emerald-400 bg-emerald-950/20 border border-emerald-900/60 p-2.5 rounded-xl">
+                  <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+                  <span className="font-medium">✓ Ethical Screening Enforced (Protected attributes omitted)</span>
+                </div>
+              </div>
             )}
           </div>
 
@@ -225,105 +316,44 @@ const UploadPage = () => {
               onChange={handleFileChange}
               className="hidden"
             />
-            <div className="h-11 w-11 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-4">
-              <Upload className="h-5 w-5 text-brand-400 animate-pulse" />
-            </div>
-            <h4 className="text-sm font-semibold text-slate-200">Drag and drop resumes here</h4>
-            <p className="text-xs text-slate-500 mt-1 max-w-[200px]">Supports PDF, DOCX, or TXT formats up to 10MB.</p>
-            <button
-              type="button"
-              className="mt-4 text-xs font-semibold text-brand-400 hover:text-brand-300"
-            >
-              Or browse files manually
-            </button>
+            <Upload className="h-8 w-8 text-indigo-400 mb-3" />
+            <p className="text-xs font-semibold text-slate-200">Drag & Drop resumes here</p>
+            <p className="text-[10px] text-slate-500 mt-1">or click to browse local files</p>
+            <span className="text-[9px] text-indigo-500/80 mt-4 uppercase tracking-widest font-semibold">PDF, DOCX, TXT (Max 10MB)</span>
           </div>
-        </div>
 
-        {/* Queue List & Candidates table */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Upload Queue */}
+          {/* Upload Queue list */}
           {uploadQueue.length > 0 && (
-            <div className="glass-panel border border-slate-800/80 rounded-2xl p-6">
-              <div className="flex justify-between items-center border-b border-slate-800 pb-4 mb-4">
-                <h3 className="font-semibold text-slate-100 flex items-center space-x-2">
-                  <FileText className="h-4.5 w-4.5 text-indigo-400" />
-                  <span>Upload Queue ({uploadQueue.length})</span>
-                </h3>
-                <div className="flex space-x-3">
-                  <button
-                    onClick={clearQueue}
-                    disabled={uploading}
-                    className="text-xs font-medium text-slate-500 hover:text-slate-300 disabled:opacity-50"
-                  >
-                    Clear All
-                  </button>
-                  <button
-                    onClick={handleUploadSubmit}
-                    disabled={uploading || !uploadQueue.some(item => item.status === 'Queued')}
-                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition active:scale-95 disabled:opacity-50 flex items-center space-x-1.5"
-                  >
-                    {uploading ? (
-                      <>
-                        <RefreshCw className="h-3 w-3 animate-spin" />
-                        <span>Uploading...</span>
-                      </>
-                    ) : (
-                      <span>Start Upload Batch</span>
-                    )}
-                  </button>
-                </div>
+            <div className="glass-panel border border-slate-800/80 rounded-2xl p-6 space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h4 className="text-xs font-semibold text-slate-300">File Ingestion Queue</h4>
+                <button
+                  onClick={uploadQueuedFiles}
+                  disabled={uploading || !uploadQueue.some(i => i.status === 'queued')}
+                  className="px-3 py-1.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-[10px] font-bold text-slate-100 rounded-lg transition"
+                >
+                  {uploading ? 'Processing...' : 'Run Analysis'}
+                </button>
               </div>
 
-              <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-                {uploadQueue.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center bg-slate-900/50 border border-slate-900 p-3 rounded-xl">
-                    <div className="flex items-center space-x-3 min-w-0">
-                      <div className="p-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-400 flex-shrink-0">
-                        <FileText className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className="text-xs font-semibold text-slate-200 truncate pr-2" title={item.name}>{item.name}</h4>
-                        <span className="text-[10px] text-slate-500">{item.size}</span>
-                      </div>
+              <div className="max-h-48 overflow-y-auto space-y-2">
+                {uploadQueue.map(item => (
+                  <div key={item.id} className="flex justify-between items-center p-2 bg-slate-900/40 border border-slate-900 rounded-lg text-[10px]">
+                    <div className="flex items-center space-x-2 truncate pr-2">
+                      <FileText className="h-4 w-4 text-indigo-400 flex-shrink-0" />
+                      <span className="text-slate-300 truncate" title={item.name}>{item.name}</span>
+                      <span className="text-[9px] text-slate-500">({item.size})</span>
                     </div>
-                    
-                    <div className="flex items-center space-x-3 flex-shrink-0">
-                      {item.status === 'Queued' && (
-                        <span className="text-[10px] font-semibold text-slate-400 border border-slate-800 bg-slate-900 px-2 py-0.5 rounded-md">
-                          Ready
+                    <div className="flex items-center space-x-2 flex-shrink-0">
+                      {item.status === 'uploaded' && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+                      {item.status === 'error' && (
+                        <span className="text-[9px] text-rose-400 font-semibold max-w-[80px] truncate" title={item.error}>
+                          {item.error}
                         </span>
                       )}
-                      {item.status === 'Rejected' && (
-                        <span className="text-[10px] font-semibold text-red-400 border border-red-950/60 bg-red-950/20 px-2 py-0.5 rounded-md flex items-center space-x-1" title={item.error}>
-                          <XCircle className="h-3 w-3" />
-                          <span>Invalid File</span>
-                        </span>
-                      )}
-                      {item.status === 'Success' && !item.error && (
-                        <span className="text-[10px] font-semibold text-emerald-400 border border-emerald-950/60 bg-emerald-950/20 px-2 py-0.5 rounded-md flex items-center space-x-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          <span>Success</span>
-                        </span>
-                      )}
-                      {item.status === 'Success' && item.error && (
-                        <span className="text-[10px] font-semibold text-amber-400 border border-amber-950/60 bg-amber-950/20 px-2 py-0.5 rounded-md flex items-center space-x-1" title={item.error}>
-                          <AlertCircle className="h-3 w-3" />
-                          <span>Corrupted</span>
-                        </span>
-                      )}
-                      {item.status === 'Failed' && (
-                        <span className="text-[10px] font-semibold text-red-400 border border-red-950/60 bg-red-950/20 px-2 py-0.5 rounded-md flex items-center space-x-1" title={item.error}>
-                          <XCircle className="h-3 w-3" />
-                          <span>Failed</span>
-                        </span>
-                      )}
-                      
-                      <button
-                        onClick={() => clearQueueItem(idx)}
-                        disabled={uploading}
-                        className="text-slate-500 hover:text-slate-300 disabled:opacity-50"
-                      >
-                        <Trash2 className="h-4 w-4" />
+                      {item.status === 'queued' && <span className="text-indigo-400 text-[8px] font-bold uppercase">Queued</span>}
+                      <button onClick={() => removeQueueItem(item.id)} className="text-slate-500 hover:text-rose-400">
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   </div>
@@ -332,6 +362,11 @@ const UploadPage = () => {
             </div>
           )}
 
+        </div>
+
+        {/* Right Column: Applicants Directory Table */}
+        <div className="lg:col-span-2">
+          
           {/* Candidates catalog table */}
           <div className="glass-panel border border-slate-800/80 rounded-2xl p-6">
             <div className="flex justify-between items-center border-b border-slate-800 pb-4 mb-4">
@@ -339,9 +374,16 @@ const UploadPage = () => {
                 <FileText className="h-4.5 w-4.5 text-indigo-400" />
                 <span>Uploaded Candidates</span>
               </h3>
-              <span className="text-[10px] bg-slate-900 border border-slate-800 text-slate-400 px-2 py-0.5 rounded-md font-semibold">
-                Total: {candidates.length}
-              </span>
+              <div className="flex items-center space-x-2">
+                {selectedCandidates.length > 0 && (
+                  <span className="text-[10px] bg-indigo-950/40 border border-indigo-900 text-indigo-300 px-2 py-0.5 rounded-md font-semibold animate-pulse">
+                    Selected for comparison: {selectedCandidates.length}
+                  </span>
+                )}
+                <span className="text-[10px] bg-slate-900 border border-slate-800 text-slate-400 px-2 py-0.5 rounded-md font-semibold">
+                  Total: {candidates.length}
+                </span>
+              </div>
             </div>
 
             {candidatesLoading ? (
@@ -357,6 +399,7 @@ const UploadPage = () => {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-slate-800/60 text-slate-400 font-bold uppercase tracking-wider">
+                      <th className="pb-3 font-semibold text-center w-8">Select</th>
                       <th className="pb-3 font-semibold">Candidate Name</th>
                       <th className="pb-3 font-semibold">Filename</th>
                       <th className="pb-3 font-semibold">Upload Date</th>
@@ -367,6 +410,16 @@ const UploadPage = () => {
                   <tbody>
                     {candidates.map((cand) => (
                       <tr key={cand.Candidate_ID} className="border-b border-slate-900/60 last:border-0 hover:bg-slate-900/20">
+                        {/* Checkbox column */}
+                        <td className="py-3 text-center">
+                          <input
+                            type="checkbox"
+                            disabled={cand.Processing_Status === 'Failed'}
+                            checked={selectedCandidates.includes(cand.Candidate_ID)}
+                            onChange={() => handleSelectCandidate(cand.Candidate_ID)}
+                            className="rounded border-slate-850 bg-slate-900 text-indigo-600 focus:ring-indigo-500/30 w-3.5 h-3.5"
+                          />
+                        </td>
                         <td className="py-3 font-semibold text-slate-200">
                           <Link 
                             to={`/candidate/${cand.Candidate_ID}`} 
@@ -427,6 +480,25 @@ const UploadPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Floating comparison drawer */}
+      {selectedCandidates.length >= 2 && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900/90 backdrop-blur border border-indigo-500/30 rounded-2xl p-4 shadow-2xl flex items-center space-x-4 animate-in fade-in slide-in-from-bottom-4">
+          <div className="text-xs">
+            <div className="font-bold text-slate-100 flex items-center space-x-1">
+              <Scale className="h-3.5 w-3.5 text-indigo-400" />
+              <span>{selectedCandidates.length} Selected</span>
+            </div>
+            <div className="text-slate-400 text-[10px]">Candidates matched for evaluation</div>
+          </div>
+          <Link
+            to={`/compare?jobId=${selectedJobId}&ids=${selectedCandidates.join(',')}`}
+            className="px-4 py-2 bg-gradient-to-r from-brand-500 to-indigo-500 hover:from-brand-600 hover:to-indigo-600 text-xs font-bold text-slate-100 rounded-xl transition shadow-lg flex items-center"
+          >
+            Compare Profiles
+          </Link>
+        </div>
+      )}
     </div>
   );
 };

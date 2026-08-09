@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 # User schemas
@@ -53,6 +53,12 @@ class JobCreate(BaseModel):
     Job_Type: str
     Location: str
     Weights: Optional[Dict[str, float]] = None
+    
+    # Phase 3 Thresholds & Blind Mode
+    Blind_Mode: bool = False
+    Strong_Threshold: float = 85.0
+    Good_Threshold: float = 70.0
+    Potential_Threshold: float = 50.0
 
 class JobResponse(BaseModel):
     Job_ID: int
@@ -69,6 +75,12 @@ class JobResponse(BaseModel):
     Created_By: int
     Created_At: datetime
     weights: List[JobSkillWeightBase]
+    
+    # Phase 3 Fields
+    Blind_Mode: bool
+    Strong_Threshold: float
+    Good_Threshold: float
+    Potential_Threshold: float
 
     class Config:
         from_attributes = True
@@ -85,6 +97,7 @@ class CandidateResponse(BaseModel):
     Processing_Status: str
     Job_ID: int
     Overall_Score: Optional[float] = None
+    Is_Identity_Revealed: bool = False
 
     class Config:
         from_attributes = True
@@ -148,6 +161,10 @@ class ScreeningResultResponse(BaseModel):
     Completeness_Score: float
     Semantic_Score: float
     Overall_Score: float
+    
+    # Phase 3 Explainability & Match confidence
+    Explanation: Optional[Dict[str, Any]] = None
+    Confidence_Level: str
 
     class Config:
         from_attributes = True
@@ -163,15 +180,38 @@ class CandidateDetailResponse(BaseModel):
     Upload_Date: datetime
     Processing_Status: str
     Job_ID: int
+    Is_Identity_Revealed: bool
     skills: List[CandidateSkillResponse] = []
     experiences: List[CandidateExperienceResponse] = []
     educations: List[CandidateEducationResponse] = []
     projects: List[CandidateProjectResponse] = []
     certifications: List[CandidateCertificationResponse] = []
-    screening_results: List[ScreeningResultResponse] = [] # list because of relationship or return single
+    screening_results: List[ScreeningResultResponse] = []
 
     class Config:
         from_attributes = True
+
+# Identity reveal request body
+class RevealRequest(BaseModel):
+    Reason: str = Field(..., min_length=3, max_length=250)
+
+# What-If Analysis schemas
+class WhatIfRequest(BaseModel):
+    Weights: Dict[str, float]
+    Required_Skills: List[str]
+    Preferred_Skills: List[str]
+
+class WhatIfCandidatePreview(BaseModel):
+    Candidate_ID: int
+    Name: str
+    Old_Score: float
+    New_Score: float
+    Old_Rank: int
+    New_Rank: int
+
+class WhatIfResponse(BaseModel):
+    Job_ID: int
+    candidates: List[WhatIfCandidatePreview]
 
 # Audit Log schemas
 class AuditLogResponse(BaseModel):
