@@ -220,6 +220,25 @@ const UploadPage = () => {
     });
   };
 
+  const handleExportCSV = async () => {
+    if (!selectedJobId) return;
+    try {
+      const response = await axios.get(`/jobs/${selectedJobId}/export`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `screening_report_job_${selectedJobId}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to export screening CSV report.');
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Page Title */}
@@ -367,14 +386,22 @@ const UploadPage = () => {
         {/* Right Column: Applicants Directory Table */}
         <div className="lg:col-span-2">
           
-          {/* Candidates catalog table */}
           <div className="glass-panel border border-slate-800/80 rounded-2xl p-6">
             <div className="flex justify-between items-center border-b border-slate-800 pb-4 mb-4">
-              <h3 className="font-semibold text-slate-100 flex items-center space-x-2">
-                <FileText className="h-4.5 w-4.5 text-indigo-400" />
-                <span>Uploaded Candidates</span>
-              </h3>
               <div className="flex items-center space-x-2">
+                <FileText className="h-4.5 w-4.5 text-indigo-400" />
+                <h3 className="font-semibold text-slate-100">Uploaded Candidates</h3>
+              </div>
+              <div className="flex items-center space-x-3">
+                {candidates.length > 0 && (
+                  <button
+                    onClick={handleExportCSV}
+                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 rounded-lg text-[10px] font-bold transition flex items-center space-x-1"
+                    title="Export all screening scores to CSV"
+                  >
+                    <span>Export CSV</span>
+                  </button>
+                )}
                 {selectedCandidates.length > 0 && (
                   <span className="text-[10px] bg-indigo-950/40 border border-indigo-900 text-indigo-300 px-2 py-0.5 rounded-md font-semibold animate-pulse">
                     Selected for comparison: {selectedCandidates.length}
@@ -404,6 +431,7 @@ const UploadPage = () => {
                       <th className="pb-3 font-semibold">Filename</th>
                       <th className="pb-3 font-semibold">Upload Date</th>
                       <th className="pb-3 font-semibold text-center">Match Score</th>
+                      <th className="pb-3 font-semibold text-center">Recruiter Decision</th>
                       <th className="pb-3 font-semibold text-right">Integrity Status</th>
                     </tr>
                   </thead>
@@ -447,6 +475,23 @@ const UploadPage = () => {
                             </span>
                           ) : (
                             <span className="text-slate-500 italic text-[10px]">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 text-center">
+                          {cand.Decision ? (
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                              cand.Decision === 'Shortlist' 
+                                ? 'bg-emerald-950/40 border-emerald-900 text-emerald-400' 
+                                : cand.Decision === 'Reject'
+                                  ? 'bg-rose-950/40 border-rose-900 text-rose-400'
+                                  : cand.Decision === 'Interview'
+                                    ? 'bg-indigo-950/40 border-indigo-900 text-indigo-400'
+                                    : 'bg-amber-950/40 border-amber-900 text-amber-400'
+                            }`}>
+                              {cand.Decision}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 italic text-[10px]">Awaiting Review</span>
                           )}
                         </td>
                         <td className="py-3 text-right">

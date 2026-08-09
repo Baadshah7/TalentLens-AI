@@ -15,6 +15,7 @@ class User(Base):
     # Relationships
     jobs = relationship("Job", back_populates="creator")
     audit_logs = relationship("AuditLog", back_populates="user")
+    recruiter_decisions = relationship("RecruiterDecision", back_populates="recruiter")
 
 class Job(Base):
     __tablename__ = "jobs"
@@ -81,6 +82,9 @@ class Candidate(Base):
     projects = relationship("CandidateProject", back_populates="candidate", cascade="all, delete-orphan")
     certifications = relationship("CandidateCertification", back_populates="candidate", cascade="all, delete-orphan")
     screening_results = relationship("ScreeningResult", back_populates="candidate", cascade="all, delete-orphan")
+    
+    # Phase 4 Recruiter Decision relationship (One-To-One)
+    recruiter_decision = relationship("RecruiterDecision", back_populates="candidate", uselist=False, cascade="all, delete-orphan")
 
 class CandidateSkill(Base):
     __tablename__ = "candidate_skills"
@@ -165,6 +169,20 @@ class ScreeningResult(Base):
     # Relationships
     candidate = relationship("Candidate", back_populates="screening_results")
     job = relationship("Job", back_populates="screening_results")
+
+class RecruiterDecision(Base):
+    __tablename__ = "recruiter_decisions"
+
+    Decision_ID = Column(Integer, primary_key=True, index=True)
+    Candidate_ID = Column(Integer, ForeignKey("candidates.Candidate_ID", ondelete="CASCADE"), unique=True, nullable=False)
+    Recruiter_ID = Column(Integer, ForeignKey("users.User_ID", ondelete="SET NULL"), nullable=True)
+    Decision = Column(String, nullable=False)  # Shortlist, Reject, Hold, Interview, Select
+    Reason = Column(String, nullable=True)
+    Timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+
+    # Relationships
+    candidate = relationship("Candidate", back_populates="recruiter_decision")
+    recruiter = relationship("User", back_populates="recruiter_decisions")
 
 class EmbeddingCache(Base):
     __tablename__ = "embedding_cache"

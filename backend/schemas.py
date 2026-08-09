@@ -85,6 +85,22 @@ class JobResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# Recruiter Decision schemas (Phase 4)
+class RecruiterDecisionResponse(BaseModel):
+    Decision_ID: int
+    Candidate_ID: int
+    Recruiter_ID: Optional[int] = None
+    Decision: str
+    Reason: Optional[str] = None
+    Timestamp: datetime
+
+    class Config:
+        from_attributes = True
+
+class RecruiterDecisionCreate(BaseModel):
+    Decision: str = Field(..., pattern="^(Shortlist|Reject|Hold|Interview|Select)$")
+    Reason: Optional[str] = None
+
 # Candidate schemas
 class CandidateResponse(BaseModel):
     Candidate_ID: int
@@ -98,6 +114,7 @@ class CandidateResponse(BaseModel):
     Job_ID: int
     Overall_Score: Optional[float] = None
     Is_Identity_Revealed: bool = False
+    Decision: Optional[str] = None # Added for listings
 
     class Config:
         from_attributes = True
@@ -187,6 +204,7 @@ class CandidateDetailResponse(BaseModel):
     projects: List[CandidateProjectResponse] = []
     certifications: List[CandidateCertificationResponse] = []
     screening_results: List[ScreeningResultResponse] = []
+    recruiter_decision: Optional[RecruiterDecisionResponse] = None # Added for detailed profile views
 
     class Config:
         from_attributes = True
@@ -220,7 +238,7 @@ class AuditLogResponse(BaseModel):
     Action: str
     Timestamp: datetime
     Details: Optional[str] = None
-    User_Name: Optional[str] = None  # Populated via join if needed
+    User_Name: Optional[str] = None
 
     class Config:
         from_attributes = True

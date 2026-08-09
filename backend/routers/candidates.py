@@ -3,12 +3,13 @@ import shutil
 import docx
 import pdfplumber
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
 import models
 import schemas
-from dependencies import get_current_user
+from dependencies import get_current_user, get_current_admin
 from utils import log_action
 from parser import parse_resume_full, extract_name_from_filename, check_file_corrupted
 from scoring import score_candidate
@@ -17,6 +18,24 @@ router = APIRouter(prefix="/candidates", tags=["candidates"])
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
+
+def check_file_signature(file_path: str, ext: str) -> bool:
+    """Verifies file magic headers to prevent disguised uploads (e.g. EXE renamed to PDF)."""
+    try:
+        with open(file_path, "rb") as f:
+            header = f.read(4)
+        if ext == ".pdf":
+            return header.startswith(b"%PDF")
+        elif ext == ".docx":
+            return header.startswith(b"PK\x03\x04")
+        elif ext == ".txt":
+            # Just verify it's readable text
+            with open(file_path, "r", encoding="utf-8", errors="strict") as tf:
+                _ = tf.read(512)
+            return True
+    except Exception:
+        return False
+    return True
 
 def save_parsed_resume_to_db(candidate: models.Candidate, parsed_data: dict, db: Session):
     """Saves all parsed resume subcomponents into candidate relational tables."""
@@ -97,6 +116,7 @@ def upload_resumes(
     if not job:
         raise HTTPException(status_code=404, detail="Target job description not found")
 
+    # Secure uploads directory outside public web root
     upload_dir = os.path.join("uploads", str(job_id))
     os.makedirs(upload_dir, exist_ok=True)
 
@@ -107,7 +127,7 @@ def upload_resumes(
         _, ext = os.path.splitext(filename)
         ext = ext.lower()
         
-        # 1. Validate extension
+        # 1. Validate file extension
         if ext not in ALLOWED_EXTENSIONS:
             results.append({
                 "filename": filename,
@@ -116,7 +136,7 @@ def upload_resumes(
             })
             continue
 
-        # 2. Save temporary contents to check size
+        # 2. Save temporary contents to check size (Enforces max 10MB limit)
         file_path = os.path.join(upload_dir, filename)
         
         try:
@@ -140,8 +160,9 @@ def upload_resumes(
                 })
                 continue
                 
-            # 3. Check for file corruption
-            is_corrupted = check_file_corrupted(file_path, ext)
+            # 3. Check file signature header check
+            is_valid_header = check_file_signature(file_path, ext)
+            is_corrupted = check_file_corrupted(file_path, ext) or not is_valid_header
             processing_status = "Failed" if is_corrupted else "Pending"
             
             # Extract candidate name from filename (initial fallback)
@@ -167,7 +188,7 @@ def upload_resumes(
             
             if not is_corrupted:
                 try:
-                    # Run full parser (this automatically triggers sanitize_text internally)
+                    # Run full parser
                     parsed_data = parse_resume_full(file_path, filename)
                     
                     # Store relational data
@@ -177,7 +198,7 @@ def upload_resumes(
                     candidate.Processing_Status = "Parsed"
                     db.commit()
                     
-                    # Trigger Scoring Engine (calculates weights, confidence, explanations)
+                    # Trigger Scoring Engine
                     score_res = score_candidate(candidate.Candidate_ID, job_id, db)
                     overall_score = score_res.Overall_Score
                     
@@ -188,7 +209,7 @@ def upload_resumes(
                     is_corrupted = True
                     error_details = f"Parsing failure: {str(parse_err)}"
             else:
-                error_details = "File structure is corrupted or unreadable."
+                error_details = "File magic number signature mismatch or corrupted structure."
 
             # Log to Audit log
             details = f"Processed resume '{filename}' for job ID {job_id}. Overall Match Score: {overall_score}%."
@@ -241,6 +262,7 @@ def get_candidates_by_job(
     for c in candidates:
         res = db.query(models.ScreeningResult).filter(models.ScreeningResult.Candidate_ID == c.Candidate_ID).first()
         score = res.Overall_Score if res else None
+        decision = c.recruiter_decision.Decision if c.recruiter_decision else None
         
         is_blind = job.Blind_Mode and not c.Is_Identity_Revealed
         response_list.append({
@@ -254,7 +276,8 @@ def get_candidates_by_job(
             "Processing_Status": c.Processing_Status,
             "Job_ID": c.Job_ID,
             "Overall_Score": score,
-            "Is_Identity_Revealed": c.Is_Identity_Revealed
+            "Is_Identity_Revealed": c.Is_Identity_Revealed,
+            "Decision": decision
         })
     return response_list
 
@@ -287,7 +310,8 @@ def get_candidate_details(
         "educations": candidate.educations,
         "projects": candidate.projects,
         "certifications": candidate.certifications,
-        "screening_results": candidate.screening_results
+        "screening_results": candidate.screening_results,
+        "recruiter_decision": candidate.recruiter_decision
     }
 
 @router.post("/{candidate_id}/rescore", response_model=schemas.ScreeningResultResponse)
@@ -358,5 +382,127 @@ def reveal_candidate_identity(
         "educations": candidate.educations,
         "projects": candidate.projects,
         "certifications": candidate.certifications,
-        "screening_results": candidate.screening_results
+        "screening_results": candidate.screening_results,
+        "recruiter_decision": candidate.recruiter_decision
     }
+
+# Phase 4 Download Endpoint (Authenticated)
+@router.get("/{candidate_id}/download")
+def download_resume(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    candidate = db.query(models.Candidate).filter(models.Candidate.Candidate_ID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+        
+    file_path = candidate.Resume_File_Path
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Resume file not found on disk")
+        
+    return FileResponse(
+        path=file_path,
+        filename=os.path.basename(file_path),
+        media_type="application/octet-stream"
+    )
+
+# Phase 4 Admin Data Deletion
+@router.delete("/{candidate_id}")
+def delete_candidate(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_admin)  # Strictly Admin-only
+):
+    candidate = db.query(models.Candidate).filter(models.Candidate.Candidate_ID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+        
+    # Delete resume file from disk
+    file_path = candidate.Resume_File_Path
+    if os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+        except Exception as e:
+            print(f"Failed deleting file {file_path}: {e}")
+            
+    candidate_name = candidate.Name
+    db.delete(candidate)
+    db.commit()
+    
+    log_action(
+        db,
+        user_id=current_user.User_ID,
+        action="Candidate Deleted",
+        details=f"Admin permanently deleted candidate '{candidate_name}' (ID: {candidate_id}) and all extracted metadata."
+    )
+    
+    return {"message": f"Candidate {candidate_id} permanently deleted successfully"}
+
+# Phase 4 Recruiter Review Decision
+@router.post("/{candidate_id}/decision", response_model=schemas.RecruiterDecisionResponse)
+def submit_recruiter_decision(
+    candidate_id: int,
+    decision_data: schemas.RecruiterDecisionCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    candidate = db.query(models.Candidate).filter(models.Candidate.Candidate_ID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+        
+    score_res = db.query(models.ScreeningResult).filter(models.ScreeningResult.Candidate_ID == candidate_id).first()
+    ai_recommendation = "Low Match"
+    if score_res and score_res.Explanation:
+        ai_recommendation = score_res.Explanation.get("recommendation", "Low Match")
+        
+    # Validate AI Recommendations conflict
+    new_dec = decision_data.Decision
+    is_conflict = False
+    if ai_recommendation == "Low Match" and new_dec in {"Shortlist", "Interview", "Select"}:
+        is_conflict = True
+    elif ai_recommendation == "Strong Match" and new_dec == "Reject":
+        is_conflict = True
+        
+    if is_conflict and (not decision_data.Reason or len(decision_data.Reason.strip()) < 3):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Conflict detected: Recruiter decision ({new_dec}) contradicts AI recommendation ({ai_recommendation}). A mandatory reason must be provided."
+        )
+
+    # Overwrite decision (if exists) or create new
+    decision = db.query(models.RecruiterDecision).filter(models.RecruiterDecision.Candidate_ID == candidate_id).first()
+    
+    old_decision = "None"
+    if decision:
+        old_decision = decision.Decision
+        decision.Decision = new_dec
+        decision.Reason = decision_data.Reason
+        decision.Recruiter_ID = current_user.User_ID
+        import datetime
+        decision.Timestamp = datetime.datetime.utcnow()
+    else:
+        decision = models.RecruiterDecision(
+            Candidate_ID=candidate_id,
+            Recruiter_ID=current_user.User_ID,
+            Decision=new_dec,
+            Reason=decision_data.Reason
+        )
+        db.add(decision)
+        
+    db.commit()
+    db.refresh(decision)
+    
+    # Audit log trail showing transition
+    details = f"Recruiter changed Candidate #{candidate_id} ({candidate.Name}) decision from '{old_decision}' to '{new_dec}' (AI Recommendation was: {ai_recommendation})."
+    if decision_data.Reason:
+        details += f" Reason: {decision_data.Reason}"
+        
+    log_action(
+        db,
+        user_id=current_user.User_ID,
+        action="Candidate Decision",
+        details=details
+    )
+    
+    return decision

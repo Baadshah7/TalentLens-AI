@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft, User, Mail, Phone, MapPin, Briefcase, FileText, CheckCircle2, XCircle, Award, ShieldAlert, Sparkles, RefreshCw, Layers, Scale, Eye } from 'lucide-react';
+import { 
+  ArrowLeft, User, Mail, Phone, MapPin, Briefcase, FileText, CheckCircle2, 
+  XCircle, Award, ShieldAlert, Sparkles, RefreshCw, Layers, Scale, Eye, Download, AlertTriangle, ShieldCheck
+} from 'lucide-react';
 
 const CandidateDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [candidate, setCandidate] = useState(null);
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -13,6 +17,13 @@ const CandidateDetail = () => {
   const [revealReason, setRevealReason] = useState('');
   const [showRevealModal, setShowRevealModal] = useState(false);
   const [error, setError] = useState('');
+
+  // Recruiter Decision workflow states
+  const [showDecisionModal, setShowDecisionModal] = useState(false);
+  const [selectedDecision, setSelectedDecision] = useState('');
+  const [decisionReason, setDecisionReason] = useState('');
+  const [isDecisionConflict, setIsDecisionConflict] = useState(false);
+  const [submittingDecision, setSubmittingDecision] = useState(false);
 
   const fetchCandidateData = async () => {
     try {
@@ -72,6 +83,70 @@ const CandidateDetail = () => {
     }
   };
 
+  const handleDownloadResume = async () => {
+    try {
+      const res = await axios.get(`/candidates/${id}/download`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      const originalFilename = candidate.Resume_File_Path.split(/[\\/]/).pop() || 'resume.pdf';
+      link.setAttribute('download', originalFilename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to download resume file.');
+    }
+  };
+
+  const openDecisionModal = (decisionType) => {
+    const aiRec = scoreInfo.Explanation?.recommendation || 'Low Match';
+    
+    // Check conflicts
+    let conflict = False;
+    if (aiRec === 'Low Match' && ['Shortlist', 'Interview', 'Select'].includes(decisionType)) {
+      conflict = true;
+    } else if (aiRec === 'Strong Match' && decisionType === 'Reject') {
+      conflict = true;
+    }
+
+    setSelectedDecision(decisionType);
+    setIsDecisionConflict(conflict);
+    setDecisionReason('');
+    setShowDecisionModal(true);
+  };
+
+  const handleDecisionSubmit = async (e) => {
+    e.preventDefault();
+    if (isDecisionConflict && (!decisionReason || decisionReason.trim().length < 3)) {
+      alert('A detailed explanation is mandatory when overriding the AI recommendation.');
+      return;
+    }
+
+    setSubmittingDecision(true);
+    try {
+      const payload = {
+        Decision: selectedDecision,
+        Reason: decisionReason.trim() || null
+      };
+      const res = await axios.post(`/candidates/${id}/decision`, payload);
+      setCandidate(prev => ({
+        ...prev,
+        recruiter_decision: res.data
+      }));
+      setShowDecisionModal(false);
+      alert('Recruiter review decision logged successfully.');
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.detail || 'Failed to submit recruiter decision.');
+    } finally {
+      setSubmittingDecision(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96 text-slate-400 text-sm">
@@ -123,6 +198,15 @@ const CandidateDetail = () => {
     return 'bg-rose-500';
   };
 
+  const getDecisionBadgeStyle = (dec) => {
+    if (dec === 'Shortlist') return 'bg-emerald-950/50 border border-emerald-500/30 text-emerald-400';
+    if (dec === 'Interview') return 'bg-indigo-950/50 border border-indigo-500/30 text-indigo-400';
+    if (dec === 'Reject') return 'bg-rose-950/50 border border-rose-500/30 text-rose-400';
+    if (dec === 'Hold') return 'bg-amber-950/50 border border-amber-500/30 text-amber-400';
+    if (dec === 'Select') return 'bg-teal-950/50 border border-teal-500/30 text-teal-300 font-bold';
+    return 'bg-slate-900 border border-slate-800 text-slate-400';
+  };
+
   const subscores = [
     { label: 'Skills Alignment', value: scoreInfo.Skill_Score, desc: 'Exact & taxonomy matches vs required/preferred skills' },
     { label: 'Experience Match', value: scoreInfo.Experience_Score, desc: 'Duration of experience set as semantically relevant' },
@@ -143,11 +227,15 @@ const CandidateDetail = () => {
         </Link>
 
         <div className="flex items-center space-x-3">
-          {/* Persistent Ethical Screen active indicator */}
-          <div className="flex items-center space-x-2 text-[10px] text-emerald-400 bg-emerald-950/20 border border-emerald-900/60 px-3 py-1.5 rounded-xl font-bold">
-            <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
-            <span>Ethical Screening Verified Active</span>
-          </div>
+          {/* File Download Button (Secure) */}
+          <button
+            onClick={handleDownloadResume}
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-slate-100 rounded-xl text-xs font-semibold transition"
+            title="Download original resume file from secure storage"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Download CV</span>
+          </button>
 
           {/* Reveal Identity Action */}
           {job?.Blind_Mode && !candidate.Is_Identity_Revealed && (
@@ -199,6 +287,19 @@ const CandidateDetail = () => {
             ) : (
               <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-1 block">Applicant Profile</span>
             )}
+
+            {/* Recruiter review decision status badge */}
+            <div className="mt-4 flex justify-center">
+              {candidate.recruiter_decision ? (
+                <div className={`px-4 py-1.5 rounded-full text-xs font-semibold ${getDecisionBadgeStyle(candidate.recruiter_decision.Decision)}`}>
+                  Recruiter Decision: {candidate.recruiter_decision.Decision}
+                </div>
+              ) : (
+                <div className="px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-950 border border-slate-900 text-slate-500">
+                  Status: Screened (Awaiting Review)
+                </div>
+              )}
+            </div>
             
             <div className="mt-6 space-y-3.5 text-left border-t border-slate-900/60 pt-5 text-xs text-slate-400">
               <div className="flex items-center space-x-3">
@@ -282,6 +383,55 @@ const CandidateDetail = () => {
 
         {/* Right Column: Details Lists */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Card: Recruiter Decision Panel */}
+          <div className="glass-panel border border-slate-800/80 rounded-2xl p-6 space-y-4">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+              <CheckCircle2 className="h-4 w-4 text-brand-400" />
+              <span>Hiring Workflow Overrides & Reviews</span>
+            </h4>
+            <p className="text-[10px] text-slate-400 leading-relaxed">
+              Verify qualifications and register your recruitment decision. Overriding AI match recommendations will prompt a mandatory justification audit.
+            </p>
+            <div className="flex flex-wrap gap-2.5 pt-2">
+              <button
+                onClick={() => openDecisionModal('Shortlist')}
+                className="px-3.5 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-900 text-emerald-400 text-xs font-bold transition active:scale-95"
+              >
+                Shortlist
+              </button>
+              <button
+                onClick={() => openDecisionModal('Interview')}
+                className="px-3.5 py-1.5 rounded-lg bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-900 text-indigo-400 text-xs font-bold transition active:scale-95"
+              >
+                Schedule Interview
+              </button>
+              <button
+                onClick={() => openDecisionModal('Hold')}
+                className="px-3.5 py-1.5 rounded-lg bg-amber-950/60 hover:bg-amber-900 border border-amber-900 text-amber-400 text-xs font-bold transition active:scale-95"
+              >
+                Place on Hold
+              </button>
+              <button
+                onClick={() => openDecisionModal('Reject')}
+                className="px-3.5 py-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-900 text-rose-400 text-xs font-bold transition active:scale-95"
+              >
+                Reject
+              </button>
+              <button
+                onClick={() => openDecisionModal('Select')}
+                className="px-3.5 py-1.5 rounded-lg bg-teal-950/60 hover:bg-teal-900 border border-teal-900 text-teal-300 text-xs font-extrabold transition active:scale-95"
+              >
+                Select Candidate
+              </button>
+            </div>
+            {candidate.recruiter_decision?.Reason && (
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-900 mt-2 text-xs">
+                <span className="text-[9px] text-slate-500 block uppercase font-bold">Decision Justification Reason:</span>
+                <p className="text-slate-300 mt-1 italic leading-relaxed">"{candidate.recruiter_decision.Reason}"</p>
+              </div>
+            )}
+          </div>
+
           {/* Card: Skill Gap Analysis */}
           {explanation.missing_skills && explanation.missing_skills.length > 0 && (
             <div className="p-4 bg-indigo-950/20 border border-indigo-900/60 rounded-2xl space-y-2">
@@ -525,6 +675,66 @@ const CandidateDetail = () => {
                   className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-slate-100 rounded-xl text-xs font-semibold transition disabled:opacity-50"
                 >
                   {revealing ? 'Disclosing...' : 'Confirm Reveal'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Recruiter Overrides Justification Reason Modal */}
+      {showDecisionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="space-y-1">
+              <h3 className="text-md font-bold text-slate-100 flex items-center space-x-2">
+                {isDecisionConflict ? (
+                  <>
+                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                    <span>AI recommendation conflict warning</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="h-5 w-5 text-indigo-400" />
+                    <span>Confirm review decision</span>
+                  </>
+                )}
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                {isDecisionConflict 
+                  ? `Your choice to '${selectedDecision}' this candidate conflicts with the AI recommendation of '${scoreInfo.Explanation?.recommendation || 'Low Match'}'. A mandatory justification reason is required for compliance.` 
+                  : `Please register a decision to '${selectedDecision}' Candidate '${candidate.Name}' in the workflow logs.`}
+              </p>
+            </div>
+            
+            <form onSubmit={handleDecisionSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">
+                  Justification justification reason {isDecisionConflict && '(Mandatory)'}
+                </label>
+                <textarea
+                  value={decisionReason}
+                  onChange={(e) => setDecisionReason(e.target.value)}
+                  placeholder="Provide details about why you want to proceed with this candidate..."
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-slate-100 outline-none transition text-xs min-h-[80px]"
+                  required={isDecisionConflict}
+                />
+              </div>
+              
+              <div className="flex justify-end space-x-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => { setShowDecisionModal(false); setDecisionReason(''); }}
+                  className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-slate-300 rounded-xl text-xs transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingDecision}
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-slate-100 rounded-xl text-xs font-semibold transition disabled:opacity-50"
+                >
+                  {submittingDecision ? 'Submitting...' : 'Register Decision'}
                 </button>
               </div>
             </form>

@@ -1,10 +1,13 @@
+import csv
+import io
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List
 from database import get_db
 import models
 import schemas
-from dependencies import get_current_user
+from dependencies import get_current_user, get_current_admin
 from utils import log_action
 from ethical import audit_codebase_compliance
 
@@ -33,7 +36,7 @@ def ethical_screening_check(
 def create_job(
     job_data: schemas.JobCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_user)  # Admin and Recruiter can create
 ):
     new_job = models.Job(
         Job_Title=job_data.Job_Title,
@@ -105,7 +108,7 @@ def update_job(
     job_id: int,
     job_data: schemas.JobCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_user)  # Recruiter and Admin can update
 ):
     job = db.query(models.Job).filter(models.Job.Job_ID == job_id).first()
     if not job:
@@ -160,7 +163,7 @@ def update_job(
 def delete_job(
     job_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_admin)  # Strictly Admin-only
 ):
     job = db.query(models.Job).filter(models.Job.Job_ID == job_id).first()
     if not job:
@@ -174,7 +177,7 @@ def delete_job(
         db,
         user_id=current_user.User_ID,
         action="Job Deleted",
-        details=f"Job Title: '{job_title}' (ID: {job_id}) deleted by {current_user.Name}"
+        details=f"Admin permanently deleted job '{job_title}' (ID: {job_id}) and all associated records."
     )
 
     return {"message": "Job deleted successfully"}
@@ -204,7 +207,6 @@ def what_if_preview(
         if not res:
             continue
             
-        # Recalculate skill matching in-memory using the preview requirements
         new_req_score, new_pref_score = compute_skill_scores(c.Candidate_ID, request.Required_Skills, request.Preferred_Skills, db)
         
         new_sub_scores = {
@@ -257,3 +259,65 @@ def what_if_preview(
         "Job_ID": job_id,
         "candidates": previews
     }
+
+@router.get("/{job_id}/export")
+def export_job_report(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Exports structured CSV files of job screening fit scores, rankings, and recruiter review override decisions."""
+    job = db.query(models.Job).filter(models.Job.Job_ID == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job description not found")
+        
+    candidates = db.query(models.Candidate).filter(models.Candidate.Job_ID == job_id).all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    writer.writerow([
+        "Candidate ID", "Name", "Email", "Phone", "Location", 
+        "Skill Score %", "Experience Score %", "Education Score %", 
+        "Project Score %", "Certification Score %", "Semantic Score %", 
+        "Overall Score %", "AI Confidence", "AI Recommendation", 
+        "Recruiter Decision", "Recruiter Decision Justification", "Upload Date"
+    ])
+    
+    for c in candidates:
+        res = db.query(models.ScreeningResult).filter(models.ScreeningResult.Candidate_ID == c.Candidate_ID).first()
+        dec = c.recruiter_decision
+        
+        is_blind = job.Blind_Mode and not c.Is_Identity_Revealed
+        name = f"Candidate #{c.Candidate_ID}" if is_blind else c.Name
+        email = "[HIDDEN]" if is_blind else (c.Email or "")
+        phone = "[HIDDEN]" if is_blind else (c.Phone or "")
+        location = "[HIDDEN]" if is_blind else (c.Location or "")
+        
+        writer.writerow([
+            c.Candidate_ID,
+            name,
+            email,
+            phone,
+            location,
+            res.Skill_Score if res else 0.0,
+            res.Experience_Score if res else 0.0,
+            res.Education_Score if res else 0.0,
+            res.Project_Score if res else 0.0,
+            res.Certification_Score if res else 0.0,
+            res.Semantic_Score if res else 0.0,
+            res.Overall_Score if res else 0.0,
+            res.Confidence_Level if res else "Low",
+            (res.Explanation.get("recommendation", "Low Match") if res and res.Explanation else "Low Match"),
+            dec.Decision if dec else "None",
+            dec.Reason if dec else "",
+            c.Upload_Date.isoformat()
+        ])
+        
+    output.seek(0)
+    
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=screening_report_job_{job_id}.csv"}
+    )
