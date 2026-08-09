@@ -1,0 +1,22 @@
+{
+  "Python": ["numpy", "pandas", "scikit-learn", "django", "flask", "pytorch", "tensorflow", "fastapi", "matplotlib", "seaborn", "keras", "spacy", "huggingface"],
+  "Java": ["spring boot", "spring", "hibernate", "maven", "gradle", "android sdk", "junit"],
+  "Frontend": ["react", "vue", "angular", "typescript", "javascript", "next.js", "tailwind", "html", "css", "sass", "bootstrap", "jquery"],
+  "Data Science / ML": ["machine learning", "deep learning", "nlp", "computer vision", "spacy", "nltk", "opencv", "scipy"],
+  "Cloud Computing": ["aws", "azure", "gcp", "docker", "kubernetes", "terraform", "s3", "ec2", "lambda", "ecs"],
+  "Databases": ["mysql", "postgresql", "postgres", "oracle", "mongodb", "redis", "cassandra", "sqlite", "sql", "nosql", "dynamodb", "mariadb"],
+  "Mobile Development": ["flutter", "react native", "swift", "kotlin", "ios", "android", "xcode", "cocoapods"],
+  "Cybersecurity": ["penetration testing", "vulnerability assessment", "siem", "ethical hacking", "cryptography", "firewalls", "network monitoring", "owasp", "kali linux"],
+  "DevOps": ["jenkins", "github actions", "gitlab ci", "ansible", "chef", "puppet", "docker", "kubernetes", "prometheus", "grafana", "ci/cd"],
+  "Version Control / Collaboration": ["git", "github", "gitlab", "bitbucket", "jira", "confluence", "slack", "trello"],
+  "Big Data": ["hadoop", "spark", "kafka", "hive", "flink", "mapreduce", "elasticsearch"],
+  "Go / Golang": ["goroutines", "gin", "echo", "grpc", "go channels"],
+  "C++": ["qt", "stl", "cmake", "pointers", "cpp"],
+  "C# / .NET": ["dotnet", "asp.net", "entity framework", "wpf", "wcf", "csharp"],
+  "Testing / QA": ["selenium", "cypress", "jest", "mocha", "pytest", "junit", "postman", "playwright"],
+  "Systems / OS": ["linux", "bash", "shell", "windows server", "unix", "scripting", "powershell"],
+  "PHP": ["laravel", "symfony", "wordpress", "drupal", "mysqli", "phpmyadmin"],
+  "Ruby": ["rails", "sinatra", "rspec", "bundler"],
+  "UI/UX": ["figma", "sketch", "adobe xd", "wireframing", "prototyping", "user flows"],
+  "Project Management": ["agile", "scrum", "kanban", "pmp", "prince2", "scrum master"]
+}

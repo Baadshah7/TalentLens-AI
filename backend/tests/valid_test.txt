@@ -1,0 +1,14 @@
+John Doe Resume
+Email: john.doe@example.com
+Phone: (555) 019-2834
+Location: New York, NY
+
+Skills: Python, FastAPI, React, SQL, HTML, CSS.
+
+Experience:
+Software Engineer at Tech Solutions (2022 - Present)
+- Developed and maintained web applications using React and FastAPI.
+- Improved database performance by 20%.
+
+Education:
+Bachelor of Science in Computer Science, NYU.

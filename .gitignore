@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# TalentLens-AI specific
+backend/talentlens.db
+backend/uploads/

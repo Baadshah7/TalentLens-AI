@@ -1,0 +1,194 @@
+from pydantic import BaseModel, EmailStr, Field
+from typing import List, Optional, Dict
+from datetime import datetime
+
+# User schemas
+class UserCreate(BaseModel):
+    Name: str = Field(..., min_length=2, max_length=50)
+    Email: EmailStr
+    Role: str = Field("Recruiter", pattern="^(Recruiter|Admin)$")
+    Password: str = Field(..., min_length=6)
+
+class UserLogin(BaseModel):
+    Email: EmailStr
+    Password: str
+
+class UserResponse(BaseModel):
+    User_ID: int
+    Name: str
+    Email: str
+    Role: str
+
+    class Config:
+        from_attributes = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserResponse
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
+    user_id: Optional[int] = None
+    role: Optional[str] = None
+
+# Job Skill Weights schemas
+class JobSkillWeightBase(BaseModel):
+    Category: str
+    Weight: float
+
+    class Config:
+        from_attributes = True
+
+# Job schemas
+class JobCreate(BaseModel):
+    Job_Title: str
+    Department: str
+    Description: str
+    Required_Skills: List[str] = []
+    Preferred_Skills: List[str] = []
+    Min_Experience: int = 0
+    Min_Education: Optional[str] = None
+    Certifications: List[str] = []
+    Job_Type: str
+    Location: str
+    Weights: Optional[Dict[str, float]] = None
+
+class JobResponse(BaseModel):
+    Job_ID: int
+    Job_Title: str
+    Department: str
+    Description: str
+    Required_Skills: List[str]
+    Preferred_Skills: List[str]
+    Min_Experience: int
+    Min_Education: Optional[str]
+    Certifications: List[str]
+    Job_Type: str
+    Location: str
+    Created_By: int
+    Created_At: datetime
+    weights: List[JobSkillWeightBase]
+
+    class Config:
+        from_attributes = True
+
+# Candidate schemas
+class CandidateResponse(BaseModel):
+    Candidate_ID: int
+    Name: str
+    Email: Optional[str] = None
+    Phone: Optional[str] = None
+    Location: Optional[str] = None
+    Resume_File_Path: str
+    Upload_Date: datetime
+    Processing_Status: str
+    Job_ID: int
+    Overall_Score: Optional[float] = None
+
+    class Config:
+        from_attributes = True
+
+# Candidate detailed sub-schemas
+class CandidateSkillResponse(BaseModel):
+    Skill_ID: int
+    Skill: str
+    Skill_Level: str
+    Evidence_Text: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class CandidateExperienceResponse(BaseModel):
+    Experience_ID: int
+    Company: Optional[str] = None
+    Role: Optional[str] = None
+    Duration_Months: int
+    Description: Optional[str] = None
+    Is_Relevant: bool
+
+    class Config:
+        from_attributes = True
+
+class CandidateEducationResponse(BaseModel):
+    Education_ID: int
+    Degree: Optional[str] = None
+    Institution: Optional[str] = None
+    Graduation_Year: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+class CandidateProjectResponse(BaseModel):
+    Project_ID: int
+    Project_Name: str
+    Technologies: List[str]
+    Description: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class CandidateCertificationResponse(BaseModel):
+    Certification_ID: int
+    Certification_Name: str
+    Issuing_Org: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class ScreeningResultResponse(BaseModel):
+    Screening_ID: int
+    Candidate_ID: int
+    Job_ID: int
+    Skill_Score: float
+    Experience_Score: float
+    Education_Score: float
+    Project_Score: float
+    Certification_Score: float
+    Completeness_Score: float
+    Semantic_Score: float
+    Overall_Score: float
+
+    class Config:
+        from_attributes = True
+
+# Composite detailed response for Candidate
+class CandidateDetailResponse(BaseModel):
+    Candidate_ID: int
+    Name: str
+    Email: Optional[str] = None
+    Phone: Optional[str] = None
+    Location: Optional[str] = None
+    Resume_File_Path: str
+    Upload_Date: datetime
+    Processing_Status: str
+    Job_ID: int
+    skills: List[CandidateSkillResponse] = []
+    experiences: List[CandidateExperienceResponse] = []
+    educations: List[CandidateEducationResponse] = []
+    projects: List[CandidateProjectResponse] = []
+    certifications: List[CandidateCertificationResponse] = []
+    screening_results: List[ScreeningResultResponse] = [] # list because of relationship or return single
+
+    class Config:
+        from_attributes = True
+
+# Audit Log schemas
+class AuditLogResponse(BaseModel):
+    Log_ID: int
+    User_ID: Optional[int] = None
+    Action: str
+    Timestamp: datetime
+    Details: Optional[str] = None
+    User_Name: Optional[str] = None  # Populated via join if needed
+
+    class Config:
+        from_attributes = True
+
+# Dashboard schemas
+class DashboardStats(BaseModel):
+    total_jobs: int
+    total_candidates: int
+    candidates_shortlisted: int
+    candidates_rejected: int
+    candidates_under_review: int

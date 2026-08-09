@@ -1,0 +1,22 @@
+John Doe
+Email: john.doe@example.com
+Phone: +1-555-321-4321
+Location: Seattle, WA
+
+Education
+B.Tech in Computer Science
+Delhi College of Engineering, Class of 2021
+
+Experience
+Software Engineer at Tech Corp (2022 - 2024)
+Built Python FastAPI backends and React frontends. Implemented SQL queries on PostgreSQL.
+
+Skills
+Python, NumPy, Pandas, React, SQL, PostgreSQL, AWS
+
+Projects
+Project: Personal Portfolio
+Technologies: React, FastAPI. A resume ranking application.
+
+Certifications
+AWS Certified Solution Architect

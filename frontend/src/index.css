@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-slate-100 antialiased min-h-screen font-sans;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-slate-900;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-700 rounded-md hover:bg-slate-600;
+}
+
+/* Glassmorphism utilities */
+.glass-panel {
+  background: rgba(30, 41, 59, 0.7); /* slate-800 with opacity */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-card {
+  background: rgba(30, 41, 59, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+/* Restrained Neon glow effects */
+.glow-accent-indigo {
+  box-shadow: 0 0 15px -3px rgba(99, 102, 241, 0.3);
+}
+
+.glow-accent-violet {
+  box-shadow: 0 0 15px -3px rgba(139, 92, 246, 0.3);
+}
