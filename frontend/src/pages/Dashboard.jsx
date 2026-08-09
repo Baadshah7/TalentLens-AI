@@ -15,6 +15,7 @@ const Dashboard = () => {
   });
   const [analytics, setAnalytics] = useState(null);
   const [logs, setLogs] = useState([]);
+  const [upcomingItvs, setUpcomingItvs] = useState([]);
   const [isAdmin, setIsAdmin] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -33,6 +34,16 @@ const Dashboard = () => {
 
       const analyticsRes = await axios.get('/dashboard/analytics');
       setAnalytics(analyticsRes.data);
+
+      try {
+        const itvsRes = await axios.get('/interviews?upcoming=true');
+        const next7Days = new Date();
+        next7Days.setDate(next7Days.getDate() + 7);
+        const filtered = itvsRes.data.filter(itv => new Date(itv.Interview_DateTime) <= next7Days);
+        setUpcomingItvs(filtered);
+      } catch (itvErr) {
+        console.error('Interviews fetch error:', itvErr);
+      }
 
       try {
         const logsRes = await axios.get('/dashboard/audit-logs');
@@ -257,6 +268,33 @@ const Dashboard = () => {
               ))}
               {(!analytics?.job_distribution || analytics.job_distribution.length === 0) && (
                 <div className="text-center py-12 text-xs text-slate-500 italic">No job postings seeded.</div>
+              )}
+            </div>
+          </div>
+
+          {/* Card: Upcoming Interviews (Next 7 Days) */}
+          <div className="border-t border-slate-800/60 mt-5 pt-4">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-3 flex items-center">
+              <Calendar className="h-3.5 w-3.5 mr-1 text-indigo-400" />
+              <span>Upcoming Interviews (Next 7 Days)</span>
+            </span>
+            <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+              {upcomingItvs.length === 0 ? (
+                <div className="text-center py-4 text-xs text-slate-500 italic">No sessions scheduled.</div>
+              ) : (
+                upcomingItvs.map(itv => (
+                  <div key={itv.Interview_ID} className="bg-slate-950/40 p-2.5 rounded-xl border border-slate-900 flex justify-between items-center text-[11px]">
+                    <div className="truncate pr-2">
+                      <span className="font-bold text-slate-200 block truncate">{itv.Candidate_Name}</span>
+                      <span className="text-[9px] text-slate-400 block mt-0.5">
+                        {new Date(itv.Interview_DateTime).toLocaleString(undefined, {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})}
+                      </span>
+                    </div>
+                    <span className="text-[8px] bg-indigo-950/60 border border-indigo-900 text-indigo-400 px-2 py-0.5 rounded font-bold">
+                      {itv.Mode}
+                    </span>
+                  </div>
+                ))
               )}
             </div>
           </div>

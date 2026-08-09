@@ -8,6 +8,7 @@ import Jobs from './pages/Jobs';
 import UploadPage from './pages/Upload';
 import CandidateDetail from './pages/CandidateDetail';
 import CandidateCompare from './pages/CandidateCompare';
+import Interviews from './pages/Interviews';
 
 // Auth Route Wrapper
 const MainLayout = ({ children }) => {
@@ -89,6 +90,14 @@ function AppContent() {
         element={
           <MainLayout>
             <CandidateCompare />
+          </MainLayout>
+        }
+      />
+      <Route
+        path="/interviews"
+        element={
+          <MainLayout>
+            <Interviews />
           </MainLayout>
         }
       />

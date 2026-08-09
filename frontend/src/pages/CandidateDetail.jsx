@@ -24,6 +24,11 @@ const CandidateDetail = () => {
   const [decisionReason, setDecisionReason] = useState('');
   const [isDecisionConflict, setIsDecisionConflict] = useState(false);
   const [submittingDecision, setSubmittingDecision] = useState(false);
+  
+  // Interview scheduling states
+  const [interviewDateTime, setInterviewDateTime] = useState('');
+  const [interviewMode, setInterviewMode] = useState('Online');
+  const [interviewNotes, setInterviewNotes] = useState('');
 
   const fetchCandidateData = async () => {
     try {
@@ -102,11 +107,29 @@ const CandidateDetail = () => {
     }
   };
 
+  const handleExportPDF = async () => {
+    try {
+      const res = await axios.get(`/candidates/${id}/export-pdf`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `screening_report_candidate_${id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to export candidate evaluation report PDF.');
+    }
+  };
+
   const openDecisionModal = (decisionType) => {
     const aiRec = scoreInfo.Explanation?.recommendation || 'Low Match';
     
     // Check conflicts
-    let conflict = False;
+    let conflict = false;
     if (aiRec === 'Low Match' && ['Shortlist', 'Interview', 'Select'].includes(decisionType)) {
       conflict = true;
     } else if (aiRec === 'Strong Match' && decisionType === 'Reject') {
@@ -116,6 +139,9 @@ const CandidateDetail = () => {
     setSelectedDecision(decisionType);
     setIsDecisionConflict(conflict);
     setDecisionReason('');
+    setInterviewDateTime('');
+    setInterviewMode('Online');
+    setInterviewNotes('');
     setShowDecisionModal(true);
   };
 
@@ -132,6 +158,18 @@ const CandidateDetail = () => {
         Decision: selectedDecision,
         Reason: decisionReason.trim() || null
       };
+      
+      if (selectedDecision === 'Interview') {
+        if (!interviewDateTime || !interviewMode) {
+          alert('Scheduling an interview requires both a Date/Time and Meeting Mode.');
+          setSubmittingDecision(false);
+          return;
+        }
+        payload.Interview_DateTime = interviewDateTime;
+        payload.Mode = interviewMode;
+        payload.Notes = interviewNotes.trim() || null;
+      }
+      
       const res = await axios.post(`/candidates/${id}/decision`, payload);
       setCandidate(prev => ({
         ...prev,
@@ -235,6 +273,15 @@ const CandidateDetail = () => {
           >
             <Download className="h-3.5 w-3.5" />
             <span>Download CV</span>
+          </button>
+
+          <button
+            onClick={handleExportPDF}
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-slate-100 rounded-xl text-xs font-semibold transition"
+            title="Export candidate profile and evaluation report to PDF"
+          >
+            <FileText className="h-3.5 w-3.5 text-indigo-400" />
+            <span>Export PDF Report</span>
           </button>
 
           {/* Reveal Identity Action */}
@@ -708,9 +755,45 @@ const CandidateDetail = () => {
             </div>
             
             <form onSubmit={handleDecisionSubmit} className="space-y-4">
+              {selectedDecision === 'Interview' && (
+                <div className="space-y-3.5 border-b border-slate-800/60 pb-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Interview Date & Time</label>
+                    <input
+                      type="datetime-local"
+                      value={interviewDateTime}
+                      onChange={(e) => setInterviewDateTime(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-slate-100 outline-none transition text-xs"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Interview Mode</label>
+                    <select
+                      value={interviewMode}
+                      onChange={(e) => setInterviewMode(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-slate-100 outline-none transition text-xs"
+                    >
+                      <option value="Online">Online Video Meeting</option>
+                      <option value="In-Person">In-Person Office Meeting</option>
+                      <option value="Phone">Phone Call Interview</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Interview Notes / Join Links</label>
+                    <textarea
+                      value={interviewNotes}
+                      onChange={(e) => setInterviewNotes(e.target.value)}
+                      placeholder="Add meeting details or links..."
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-slate-100 outline-none transition text-xs min-h-[50px]"
+                    />
+                  </div>
+                </div>
+              )}
+              
               <div className="space-y-1.5">
                 <label className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">
-                  Justification justification reason {isDecisionConflict && '(Mandatory)'}
+                  Justification reason {isDecisionConflict && '(Mandatory)'}
                 </label>
                 <textarea
                   value={decisionReason}

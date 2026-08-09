@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Briefcase, Upload, LogOut, User as UserIcon, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, Briefcase, Upload, LogOut, User as UserIcon, ShieldAlert, Calendar } from 'lucide-react';
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
@@ -10,6 +10,7 @@ const Sidebar = () => {
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/jobs', label: 'Job Positions', icon: Briefcase },
     { to: '/upload', label: 'Resume Upload', icon: Upload },
+    { to: '/interviews', label: 'Interviews', icon: Calendar },
   ];
 
   return (

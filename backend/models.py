@@ -16,6 +16,7 @@ class User(Base):
     jobs = relationship("Job", back_populates="creator")
     audit_logs = relationship("AuditLog", back_populates="user")
     recruiter_decisions = relationship("RecruiterDecision", back_populates="recruiter")
+    interviews = relationship("Interview", back_populates="interviewer")
 
 class Job(Base):
     __tablename__ = "jobs"
@@ -36,7 +37,7 @@ class Job(Base):
     Created_By = Column(Integer, ForeignKey("users.User_ID"), nullable=False)
     Created_At = Column(DateTime, default=datetime.datetime.utcnow)
 
-    # Phase 3 Configurable Thresholds & Blind Screening
+    # Configurable Thresholds & Blind Screening
     Blind_Mode = Column(Boolean, default=False)
     Strong_Threshold = Column(Float, default=85.0)
     Good_Threshold = Column(Float, default=70.0)
@@ -47,6 +48,7 @@ class Job(Base):
     weights = relationship("JobSkillWeight", back_populates="job", cascade="all, delete-orphan")
     candidates = relationship("Candidate", back_populates="job", cascade="all, delete-orphan")
     screening_results = relationship("ScreeningResult", back_populates="job", cascade="all, delete-orphan")
+    interviews = relationship("Interview", back_populates="job", cascade="all, delete-orphan")
 
 class JobSkillWeight(Base):
     __tablename__ = "job_skill_weights"
@@ -71,7 +73,7 @@ class Candidate(Base):
     Processing_Status = Column(String, default="Pending") # Pending, Processing, Parsed, Failed
     Job_ID = Column(Integer, ForeignKey("jobs.Job_ID", ondelete="CASCADE"), nullable=False)
 
-    # Phase 3 Blind Mode Override State
+    # Blind Mode Override State
     Is_Identity_Revealed = Column(Boolean, default=False)
 
     # Relationships
@@ -82,9 +84,8 @@ class Candidate(Base):
     projects = relationship("CandidateProject", back_populates="candidate", cascade="all, delete-orphan")
     certifications = relationship("CandidateCertification", back_populates="candidate", cascade="all, delete-orphan")
     screening_results = relationship("ScreeningResult", back_populates="candidate", cascade="all, delete-orphan")
-    
-    # Phase 4 Recruiter Decision relationship (One-To-One)
     recruiter_decision = relationship("RecruiterDecision", back_populates="candidate", uselist=False, cascade="all, delete-orphan")
+    interviews = relationship("Interview", back_populates="candidate", cascade="all, delete-orphan")
 
 class CandidateSkill(Base):
     __tablename__ = "candidate_skills"
@@ -162,7 +163,7 @@ class ScreeningResult(Base):
     Semantic_Score = Column(Float, default=0.0)
     Overall_Score = Column(Float, default=0.0)
 
-    # Phase 3 Explainability & Match confidence
+    # Explainability & Match confidence
     Explanation = Column(JSON, nullable=True) # {"strengths": [], "gaps": [], "recommendation": "", "missing_skills": []}
     Confidence_Level = Column(String, default="High") # High, Medium, Low
 
@@ -183,6 +184,24 @@ class RecruiterDecision(Base):
     # Relationships
     candidate = relationship("Candidate", back_populates="recruiter_decision")
     recruiter = relationship("User", back_populates="recruiter_decisions")
+
+class Interview(Base):
+    __tablename__ = "interviews"
+
+    Interview_ID = Column(Integer, primary_key=True, index=True)
+    Candidate_ID = Column(Integer, ForeignKey("candidates.Candidate_ID", ondelete="CASCADE"), nullable=False)
+    Job_ID = Column(Integer, ForeignKey("jobs.Job_ID", ondelete="CASCADE"), nullable=False)
+    Scheduled_By = Column(Integer, ForeignKey("users.User_ID", ondelete="SET NULL"), nullable=True)
+    Interview_DateTime = Column(DateTime, nullable=False)
+    Mode = Column(String, nullable=False)  # Online, In-Person, Phone
+    Notes = Column(String, nullable=True)
+    Status = Column(String, default="Scheduled")  # Scheduled, Completed, Cancelled, Rescheduled
+    Created_At = Column(DateTime, default=datetime.datetime.utcnow)
+
+    # Relationships
+    candidate = relationship("Candidate", back_populates="interviews")
+    job = relationship("Job", back_populates="interviews")
+    interviewer = relationship("User", back_populates="interviews")
 
 class EmbeddingCache(Base):
     __tablename__ = "embedding_cache"

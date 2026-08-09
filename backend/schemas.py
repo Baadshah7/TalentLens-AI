@@ -54,7 +54,7 @@ class JobCreate(BaseModel):
     Location: str
     Weights: Optional[Dict[str, float]] = None
     
-    # Phase 3 Thresholds & Blind Mode
+    # Thresholds & Blind Mode
     Blind_Mode: bool = False
     Strong_Threshold: float = 85.0
     Good_Threshold: float = 70.0
@@ -85,7 +85,7 @@ class JobResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# Recruiter Decision schemas (Phase 4)
+# Recruiter Decision schemas
 class RecruiterDecisionResponse(BaseModel):
     Decision_ID: int
     Candidate_ID: int
@@ -100,6 +100,45 @@ class RecruiterDecisionResponse(BaseModel):
 class RecruiterDecisionCreate(BaseModel):
     Decision: str = Field(..., pattern="^(Shortlist|Reject|Hold|Interview|Select)$")
     Reason: Optional[str] = None
+    # Optional scheduling details (Phase 5)
+    Interview_DateTime: Optional[datetime] = None
+    Mode: Optional[str] = None
+    Notes: Optional[str] = None
+
+class BulkDecisionRequest(BaseModel):
+    Candidate_IDs: List[int]
+    Decision: str = Field(..., pattern="^(Shortlist|Reject|Hold)$")
+    Reason: Optional[str] = None
+
+# Interview schemas (Phase 5)
+class InterviewResponse(BaseModel):
+    Interview_ID: int
+    Candidate_ID: int
+    Job_ID: int
+    Scheduled_By: Optional[int] = None
+    Interview_DateTime: datetime
+    Mode: str
+    Notes: Optional[str] = None
+    Status: str
+    Created_At: datetime
+    Candidate_Name: Optional[str] = None
+    Job_Title: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class InterviewCreate(BaseModel):
+    Candidate_ID: int
+    Job_ID: int
+    Interview_DateTime: datetime
+    Mode: str = Field(..., pattern="^(Online|In-Person|Phone)$")
+    Notes: Optional[str] = None
+
+class InterviewUpdate(BaseModel):
+    Interview_DateTime: datetime
+    Mode: str = Field(..., pattern="^(Online|In-Person|Phone)$")
+    Notes: Optional[str] = None
+    Status: str = Field(..., pattern="^(Scheduled|Completed|Cancelled|Rescheduled)$")
 
 # Candidate schemas
 class CandidateResponse(BaseModel):
@@ -114,7 +153,7 @@ class CandidateResponse(BaseModel):
     Job_ID: int
     Overall_Score: Optional[float] = None
     Is_Identity_Revealed: bool = False
-    Decision: Optional[str] = None # Added for listings
+    Decision: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -178,8 +217,6 @@ class ScreeningResultResponse(BaseModel):
     Completeness_Score: float
     Semantic_Score: float
     Overall_Score: float
-    
-    # Phase 3 Explainability & Match confidence
     Explanation: Optional[Dict[str, Any]] = None
     Confidence_Level: str
 
@@ -204,7 +241,8 @@ class CandidateDetailResponse(BaseModel):
     projects: List[CandidateProjectResponse] = []
     certifications: List[CandidateCertificationResponse] = []
     screening_results: List[ScreeningResultResponse] = []
-    recruiter_decision: Optional[RecruiterDecisionResponse] = None # Added for detailed profile views
+    recruiter_decision: Optional[RecruiterDecisionResponse] = None
+    interviews: List[InterviewResponse] = []  # Added for Phase 5
 
     class Config:
         from_attributes = True
