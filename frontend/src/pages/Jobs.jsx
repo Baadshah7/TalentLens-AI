@@ -208,7 +208,7 @@ const Jobs = () => {
       setWhatIfResults(res.data.candidates);
     } catch (err) {
       console.error(err);
-      alert('Recalculation failed. Verify that applicants exist for this job.');
+      alert('Recalculation failed. Verify that candidates exist for this job.');
     } finally {
       setRunningWhatIf(false);
     }
@@ -233,7 +233,7 @@ const Jobs = () => {
           className="flex items-center space-x-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold transition-all shadow-md active:scale-95"
         >
           <Plus className="h-4 w-4" />
-          <span>Add Position</span>
+          <span>Add Job</span>
         </button>
       </div>
 
@@ -245,7 +245,7 @@ const Jobs = () => {
 
       {loading ? (
         <div className="flex justify-center items-center py-12 text-slate-400 text-sm">
-          Loading positions...
+          Loading jobs...
         </div>
       ) : jobs.length === 0 ? (
         <div className="glass-panel text-center py-16 border border-slate-800 rounded-2xl">
@@ -595,7 +595,7 @@ const Jobs = () => {
                   type="submit"
                   className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold transition shadow-md active:scale-95"
                 >
-                  Save Position
+                  Save Job
                 </button>
               </div>
             </form>

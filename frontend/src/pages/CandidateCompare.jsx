@@ -35,7 +35,7 @@ const CandidateCompare = () => {
         setError('');
       } catch (err) {
         console.error(err);
-        setError('Failed to fetch applicant comparison profiles.');
+        setError('Failed to fetch candidate comparison profiles.');
       } finally {
         setLoading(false);
       }
@@ -62,7 +62,7 @@ const CandidateCompare = () => {
         </Link>
         <div className="p-4 bg-red-950/30 border border-red-900/50 rounded-xl text-red-300 text-sm flex items-center space-x-2">
           <AlertCircle className="h-5 w-5 flex-shrink-0" />
-          <span>{error || 'No applicants found to display.'}</span>
+          <span>{error || 'No candidates found to display.'}</span>
         </div>
       </div>
     );
@@ -81,14 +81,14 @@ const CandidateCompare = () => {
         <div className="space-y-1">
           <Link to={`/upload?jobId=${jobId}`} className="inline-flex items-center space-x-2 text-sm text-brand-400 hover:text-brand-300 mb-2">
             <ArrowLeft className="h-4 w-4" />
-            <span>Back to Applicants list</span>
+            <span>Back to Candidates List</span>
           </Link>
           <h2 className="text-xl font-bold text-slate-100 flex items-center space-x-2">
             <Scale className="h-5 w-5 text-indigo-400" />
-            <span>Applicant Comparison Matrix</span>
+            <span>Candidate Comparison Matrix</span>
           </h2>
           <p className="text-xs text-slate-400">
-            Comparing {candidates.length} candidates for position: <span className="font-semibold text-indigo-300">{job?.Job_Title}</span>
+            Comparing {candidates.length} candidates for job: <span className="font-semibold text-indigo-300">{job?.Job_Title}</span>
           </p>
         </div>
       </div>
@@ -205,11 +205,11 @@ const CandidateCompare = () => {
 
               {/* Row: Strengths */}
               <tr className="border-b border-slate-800/40 hover:bg-slate-900/10">
-                <td className="p-4 font-semibold text-slate-300 vertical-align-top">Key Strengths</td>
+                <td className="p-4 font-semibold text-slate-300 align-top">Key Strengths</td>
                 {candidates.map((cand) => {
                   const strengths = cand.screening_results?.[0]?.Explanation?.strengths || [];
                   return (
-                    <td key={cand.Candidate_ID} className="p-4 border-l border-slate-800/60 vertical-align-top">
+                    <td key={cand.Candidate_ID} className="p-4 border-l border-slate-800/60 align-top">
                       {strengths.length === 0 ? (
                         <span className="text-slate-500 italic">None logged</span>
                       ) : (
@@ -226,11 +226,11 @@ const CandidateCompare = () => {
 
               {/* Row: Key Gaps */}
               <tr className="hover:bg-slate-900/10">
-                <td className="p-4 font-semibold text-slate-300 vertical-align-top">Key Gaps</td>
+                <td className="p-4 font-semibold text-slate-300 align-top">Key Gaps</td>
                 {candidates.map((cand) => {
                   const gaps = cand.screening_results?.[0]?.Explanation?.gaps || [];
                   return (
-                    <td key={cand.Candidate_ID} className="p-4 border-l border-slate-800/60 vertical-align-top">
+                    <td key={cand.Candidate_ID} className="p-4 border-l border-slate-800/60 align-top">
                       {gaps.length === 0 ? (
                         <span className="text-slate-500 italic">None logged</span>
                       ) : (

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
@@ -13,15 +13,33 @@ import Interviews from './pages/Interviews';
 // Auth Route Wrapper
 const MainLayout = ({ children }) => {
   const { user } = useAuth();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-100">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto max-h-screen relative">
+    <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-100 relative">
+      {/* Mobile Top Navbar */}
+      <header className="md:hidden flex items-center justify-between p-4 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md sticky top-0 w-full z-40">
+        <div className="flex items-center space-x-2">
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center text-white font-bold text-sm">
+            TL
+          </div>
+          <span className="font-semibold text-slate-100 text-sm tracking-tight">TalentLens AI</span>
+        </div>
+        <button
+          onClick={() => setIsSidebarOpen(true)}
+          className="p-1.5 border border-slate-850 hover:border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200 rounded-lg transition"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-menu"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+        </button>
+      </header>
+
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      
+      <main className="flex-1 overflow-y-auto max-h-screen relative w-full">
         {/* Glow gradients behind layouts */}
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/5 rounded-full blur-[120px] pointer-events-none z-0"></div>
         <div className="relative z-10">

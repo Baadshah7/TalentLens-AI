@@ -189,7 +189,7 @@ const CandidateDetail = () => {
     return (
       <div className="flex justify-center items-center h-96 text-slate-400 text-sm">
         <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-        <span>Loading applicant profile...</span>
+        <span>Loading candidate profile...</span>
       </div>
     );
   }
@@ -203,7 +203,7 @@ const CandidateDetail = () => {
         </Link>
         <div className="p-4 bg-red-950/30 border border-red-900/50 rounded-xl text-red-300 text-sm flex items-center space-x-2">
           <ShieldAlert className="h-5 w-5 flex-shrink-0" />
-          <span>{error || 'Applicant profile not found.'}</span>
+          <span>{error || 'Candidate profile not found.'}</span>
         </div>
       </div>
     );
@@ -258,13 +258,13 @@ const CandidateDetail = () => {
   return (
     <div className="space-y-6 p-6">
       {/* Navigation & Actions */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <Link to={`/upload?jobId=${candidate.Job_ID}`} className="inline-flex items-center space-x-2 text-sm text-brand-400 hover:text-brand-300">
           <ArrowLeft className="h-4 w-4" />
-          <span>Back to Applicants</span>
+          <span>Back to Candidates List</span>
         </Link>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-2">
           {/* File Download Button (Secure) */}
           <button
             onClick={handleDownloadResume}
@@ -332,7 +332,7 @@ const CandidateDetail = () => {
             {job?.Blind_Mode && !candidate.Is_Identity_Revealed ? (
               <span className="text-[9px] text-indigo-400 bg-indigo-950/40 border border-indigo-900 px-2 py-0.5 rounded-full font-bold inline-block mt-1 uppercase">Anonymized Candidate</span>
             ) : (
-              <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-1 block">Applicant Profile</span>
+              <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-1 block">Candidate Profile</span>
             )}
 
             {/* Recruiter review decision status badge */}
@@ -702,7 +702,7 @@ const CandidateDetail = () => {
                 <textarea
                   value={revealReason}
                   onChange={(e) => setRevealReason(e.target.value)}
-                  placeholder="e.g. Applicant matches required skill scores; disclosing details to invite for technical interview."
+                  placeholder="e.g. Candidate matches required skill scores; disclosing details to invite for technical interview."
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-slate-100 outline-none transition text-xs min-h-[80px]"
                   required
                 />

@@ -216,7 +216,7 @@ const UploadPage = () => {
 
   const uploadQueuedFiles = async () => {
     if (!selectedJobId) {
-      alert('Please select a target job position first.');
+      alert('Please select a target job first.');
       return;
     }
 
@@ -341,7 +341,7 @@ const UploadPage = () => {
       };
 
       await axios.post('/candidates/bulk-decision', payload);
-      alert(`Recruiter decision logged successfully for ${selectedCandidates.length} applicants.`);
+      alert(`Recruiter decision logged successfully for ${selectedCandidates.length} candidates.`);
       setSelectedCandidates([]);
       setShowBulkModal(false);
       fetchCandidates();
@@ -371,7 +371,7 @@ const UploadPage = () => {
           <span>Resume Ingestion & Screening</span>
         </h2>
         <p className="text-xs text-slate-400">
-          Upload resumes and calculate match scores dynamically based on position parameters.
+          Upload resumes and calculate match scores dynamically based on job parameters.
         </p>
       </div>
 
@@ -384,7 +384,7 @@ const UploadPage = () => {
           <div className="glass-panel border border-slate-800/80 rounded-2xl p-6 space-y-4">
             <h3 className="font-semibold text-slate-100 flex items-center space-x-2">
               <Briefcase className="h-4.5 w-4.5 text-brand-400" />
-              <span>Target Position</span>
+              <span>Target Job</span>
             </h3>
             
             {jobsLoading ? (
@@ -393,7 +393,7 @@ const UploadPage = () => {
                 <span>Loading roles...</span>
               </div>
             ) : jobs.length === 0 ? (
-              <div className="text-xs text-amber-400">No active positions. Create a job first.</div>
+              <div className="text-xs text-amber-400">No active jobs. Create a job first.</div>
             ) : (
               <select
                 value={selectedJobId}
@@ -509,18 +509,18 @@ const UploadPage = () => {
 
         </div>
 
-        {/* Right Column: Applicants Directory Table */}
+        {/* Right Column: Candidates Directory Table */}
         <div className="lg:col-span-2 space-y-4">
           
           <div className="glass-panel border border-slate-800/80 rounded-2xl p-6">
             
             {/* Table Header toolbar */}
-            <div className="flex justify-between items-center border-b border-slate-800 pb-4 mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-800 pb-4 mb-4 gap-3">
               <div className="flex items-center space-x-3">
                 <FileText className="h-4.5 w-4.5 text-indigo-400 animate-pulse" />
                 <h3 className="font-semibold text-slate-100">Candidates Directory</h3>
               </div>
-              <div className="flex items-center space-x-2.5">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => setShowFilterBar(!showFilterBar)}
                   className={`px-2.5 py-1 border rounded-lg text-[10px] font-bold transition flex items-center space-x-1 ${
@@ -814,16 +814,16 @@ const UploadPage = () => {
 
       {/* Extended Floating Action Drawer (Compare & Bulk Actions) */}
       {selectedCandidates.length >= 1 && (
-        <div className="fixed bottom-6 right-6 z-40 bg-slate-900 border border-indigo-500/30 rounded-2xl p-4 shadow-2xl flex items-center space-x-4 animate-in fade-in slide-in-from-bottom-4">
-          <div className="text-xs">
+        <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:bottom-6 z-40 bg-slate-900 border border-indigo-500/30 rounded-2xl p-4 shadow-2xl flex flex-col md:flex-row md:items-center gap-3 md:gap-0 md:space-x-4 animate-in fade-in slide-in-from-bottom-4">
+          <div className="text-xs flex justify-between items-center md:block">
             <div className="font-bold text-slate-100 flex items-center space-x-1">
               <Scale className="h-3.5 w-3.5 text-indigo-400" />
               <span>{selectedCandidates.length} Selected</span>
             </div>
-            <div className="text-slate-400 text-[10px]">Compare or override decision</div>
+            <div className="text-slate-400 text-[10px] md:mt-0.5">Compare or override decision</div>
           </div>
           
-          <div className="flex items-center space-x-2 border-l border-slate-800 pl-3">
+          <div className="flex flex-wrap items-center gap-2 border-t md:border-t-0 md:border-l border-slate-800 pt-3 md:pt-0 md:pl-3 justify-end w-full md:w-auto">
             {selectedCandidates.length >= 2 && (
               <Link
                 to={`/compare?jobId=${selectedJobId}&ids=${selectedCandidates.join(',')}`}
@@ -875,7 +875,7 @@ const UploadPage = () => {
               </h3>
               <p className="text-[11px] text-slate-400">
                 {isBulkConflict 
-                  ? `Your bulk decision to '${bulkDecision}' selected applicants contradicts the AI matching suggestions for one or more profiles. A mandatory justification reason is required.`
+                  ? `Your bulk decision to '${bulkDecision}' selected candidates contradicts the AI matching suggestions for one or more profiles. A mandatory justification reason is required.`
                   : `This action will set the recruiter decision to '${bulkDecision}' for the ${selectedCandidates.length} selected candidate profiles.`}
               </p>
             </div>

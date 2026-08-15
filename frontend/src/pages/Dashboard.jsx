@@ -302,7 +302,7 @@ const Dashboard = () => {
           <div className="p-4 bg-slate-950/60 border border-slate-900 rounded-xl mt-6">
             <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-1">MIS Funnel Definition</span>
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              Provides real-time aggregate charts of applicants' conversion steps (TPS input logs aggregated into MIS reports).
+              Provides real-time aggregate charts of candidates' conversion steps (TPS input logs aggregated into MIS reports).
             </p>
           </div>
         </div>
@@ -315,14 +315,14 @@ const Dashboard = () => {
         <div className="glass-panel border border-slate-800/80 rounded-2xl p-6">
           <div className="flex items-center space-x-2 border-b border-slate-800 pb-4 mb-4">
             <TrendingUp className="h-5 w-5 text-emerald-400" />
-            <h3 className="font-semibold text-slate-100">Most Demanded Skills (Job Requisitions)</h3>
+            <h3 className="font-semibold text-slate-100">Most Demanded Skills (Jobs)</h3>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {analytics?.most_in_demand_skills?.map((skill, idx) => (
               <div key={idx} className="flex items-center justify-between p-3 bg-slate-900/40 rounded-xl border border-slate-900">
                 <span className="text-xs font-semibold text-slate-300">{skill.name}</span>
                 <span className="text-[10px] bg-emerald-950/60 border border-emerald-900 text-emerald-400 px-2 py-0.5 rounded-md font-bold">
-                  {skill.value} positions
+                  {skill.value} jobs
                 </span>
               </div>
             ))}
