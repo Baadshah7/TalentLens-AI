@@ -572,9 +572,16 @@ def submit_bulk_decisions(
         raise HTTPException(status_code=404, detail="One or more selected Candidate IDs were not found in database.")
 
     conflicting_ids = []
+    unscored_candidate_ids = []
     for c in candidates:
         res = db.query(models.ScreeningResult).filter(models.ScreeningResult.Candidate_ID == c.Candidate_ID).first()
-        ai_recommendation = res.Explanation.get("recommendation", "Low Match") if (res and res.Explanation) else "Low Match"
+        
+        # Skip conflict checking for candidates with Processing_Status != "Parsed" (unscored or failed) or missing screening result/explanation
+        if c.Processing_Status != "Parsed" or not res or not res.Explanation or "recommendation" not in res.Explanation:
+            unscored_candidate_ids.append(c.Candidate_ID)
+            continue
+            
+        ai_recommendation = res.Explanation.get("recommendation", "Low Match")
         
         is_conflict = False
         if ai_recommendation == "Low Match" and request.Decision in {"Shortlist", "Interview", "Select"}:
@@ -592,34 +599,49 @@ def submit_bulk_decisions(
             detail=f"Bulk override conflict: Recruiter decision ({request.Decision}) contradicts AI recommendations for: {violators}. A mandatory reason is required."
         )
 
-    # Perform updates
-    for c in candidates:
-        decision = db.query(models.RecruiterDecision).filter(models.RecruiterDecision.Candidate_ID == c.Candidate_ID).first()
-        old_dec = "None"
-        if decision:
-            old_dec = decision.Decision
-            decision.Decision = request.Decision
-            decision.Reason = request.Reason
-            decision.Recruiter_ID = current_user.User_ID
-            decision.Timestamp = datetime.utcnow()
-        else:
-            decision = models.RecruiterDecision(
-                Candidate_ID=c.Candidate_ID,
-                Recruiter_ID=current_user.User_ID,
-                Decision=request.Decision,
-                Reason=request.Reason
-            )
-            db.add(decision)
-        
-        db.commit()
-
-        details = f"Bulk Recruiter changed Candidate #{c.Candidate_ID} ({c.Name}) decision from '{old_dec}' to '{request.Decision}'."
-        if request.Reason:
-            details += f" Reason: {request.Reason}"
+    current_candidate = None
+    try:
+        # Perform updates stage-wise, committing only once at the end for transactional atomicity
+        for c in candidates:
+            current_candidate = c
+            decision = db.query(models.RecruiterDecision).filter(models.RecruiterDecision.Candidate_ID == c.Candidate_ID).first()
+            old_dec = "None"
+            if decision:
+                old_dec = decision.Decision
+                decision.Decision = request.Decision
+                decision.Reason = request.Reason
+                decision.Recruiter_ID = current_user.User_ID
+                decision.Timestamp = datetime.utcnow()
+            else:
+                decision = models.RecruiterDecision(
+                    Candidate_ID=c.Candidate_ID,
+                    Recruiter_ID=current_user.User_ID,
+                    Decision=request.Decision,
+                    Reason=request.Reason
+                )
+                db.add(decision)
             
-        log_action(db, user_id=current_user.User_ID, action="Candidate Decision", details=details)
+            db.flush()
 
-    return {"message": f"Successfully updated recruiter decision to '{request.Decision}' for {len(candidates)} candidates."}
+            details = f"Bulk Recruiter changed Candidate #{c.Candidate_ID} ({c.Name}) decision from '{old_dec}' to '{request.Decision}'."
+            if request.Reason:
+                details += f" Reason: {request.Reason}"
+                
+            log_action(db, user_id=current_user.User_ID, action="Candidate Decision", details=details)
+            
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        fail_cand = f"Candidate #{current_candidate.Candidate_ID} ('{current_candidate.Name}')" if current_candidate else "Unknown"
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Bulk update failed. Entire transaction rolled back. Error occurred while processing {fail_cand}: {str(e)}"
+        )
+
+    msg = f"Successfully updated recruiter decision to '{request.Decision}' for {len(candidates)} candidates."
+    if unscored_candidate_ids:
+        msg += f" Note: Candidate IDs {unscored_candidate_ids} were not yet scored; decisions applied without conflict check."
+    return {"message": msg}
 
 @router.get("/{candidate_id}/export-pdf")
 def export_candidate_pdf(
