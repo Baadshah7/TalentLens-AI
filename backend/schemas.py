@@ -288,3 +288,52 @@ class DashboardStats(BaseModel):
     candidates_shortlisted: int
     candidates_rejected: int
     candidates_under_review: int
+
+
+# Assessment / Aptitude Test schemas
+class QuestionCreate(BaseModel):
+    Text: str
+    Options: List[str]
+    Correct_Index: int = 0
+    Points: int = 1
+
+class TestCreate(BaseModel):
+    Title: str
+    Job_ID: Optional[int] = None
+    Duration_Sec: int = 600
+    Questions: List[QuestionCreate]
+
+class QuestionResponse(BaseModel):
+    Question_ID: int
+    Text: str
+    Options: List[str]
+    Points: int
+
+    class Config:
+        from_attributes = True
+
+class TestResponse(BaseModel):
+    Test_ID: int
+    Title: str
+    Job_ID: Optional[int] = None
+    Duration_Sec: int
+    Questions: List[QuestionResponse] = []
+
+    class Config:
+        from_attributes = True
+
+class SubmitRequest(BaseModel):
+    Answers: List[int]  # selected option indices by question order
+
+class SubmitResponse(BaseModel):
+    Result_ID: int
+    Test_ID: int
+    Candidate_ID: Optional[int] = None
+    Score: float
+    Max_Score: float
+    Percentage: float
+    Correct: int
+    Total: int
+
+    class Config:
+        from_attributes = True

@@ -8,6 +8,8 @@ import models
 import schemas
 from dependencies import get_current_user
 from utils import log_action
+from fastapi import WebSocket, WebSocketDisconnect
+from realtime import manager
 
 router = APIRouter(prefix="/interviews", tags=["interviews"])
 
@@ -171,3 +173,25 @@ def delete_interview(
         details=f"Recruiter deleted interview session #{id} for Candidate #{cand_id}."
     )
     return {"message": "Interview deleted successfully"}
+
+
+@router.websocket('/ws/{room_id}')
+async def interview_ws(websocket: WebSocket, room_id: str):
+    """WebSocket endpoint for live interview rooms.
+
+    Path: /interviews/ws/{room_id}
+    Simple behavior: accept connection, broadcast incoming text/json to all room participants.
+    """
+    await manager.connect(room_id, websocket)
+    try:
+        while True:
+            try:
+                data = await websocket.receive_text()
+            except Exception:
+                break
+            # echo/broadcast to room
+            await manager.broadcast_text(room_id, data)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        manager.disconnect(room_id, websocket)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Calendar, Clock, Video, Phone, MapPin, XCircle, RefreshCw, AlertCircle, Edit, Trash2 } from 'lucide-react';
 
@@ -116,6 +116,107 @@ const Interviews = () => {
     return 'bg-rose-950/60 border border-rose-900 text-rose-400';
   };
 
+  // Live interview states
+  const [liveOpen, setLiveOpen] = useState(false);
+  const [liveRoomId, setLiveRoomId] = useState(null);
+  const [liveMessages, setLiveMessages] = useState([]);
+  const [liveInput, setLiveInput] = useState('');
+  const wsRef = useRef(null);
+  const chatAreaRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const joinLive = (roomId) => {
+    setLiveMessages([]);
+    setLiveRoomId(roomId);
+    setLiveOpen(true);
+  };
+
+  const [askedQuestions, setAskedQuestions] = useState([]);
+
+  const fetchSmartQuestions = async (jobId, candidateId) => {
+    try {
+      const res = await axios.post('/chatbot/generate/interviewer', null, { params: { job_id: jobId, candidate_id: candidateId } });
+      setAskedQuestions(res.data.questions || []);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to generate smart questions.');
+    }
+  };
+
+  const leaveLive = () => {
+    if (wsRef.current) {
+      try { wsRef.current.close(); } catch (e) {}
+      wsRef.current = null;
+    }
+    setLiveOpen(false);
+    setLiveRoomId(null);
+    setLiveMessages([]);
+    setLiveInput('');
+  };
+
+  useEffect(() => {
+    if (!liveOpen || !liveRoomId) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${protocol}://${window.location.hostname}:8000/interviews/ws/${liveRoomId}`;
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setLiveMessages(m => [...m, { text: 'Connected to live room.', system: true, time: Date.now() }]);
+      // try to focus input shortly after connection
+      setTimeout(() => { if (inputRef.current) inputRef.current.focus(); }, 120);
+    };
+
+    ws.onmessage = (evt) => {
+      // message text
+      const text = evt.data;
+      setLiveMessages(m => [...m, { text, system: false, time: Date.now() }]);
+    };
+
+    ws.onclose = () => {
+      setLiveMessages(m => [...m, { text: 'Disconnected from live room.', system: true, time: Date.now() }]);
+    };
+
+    ws.onerror = (e) => {
+      setLiveMessages(m => [...m, { text: 'WebSocket error', system: true, time: Date.now() }]);
+    };
+
+    return () => {
+      try { ws.close(); } catch (e) {}
+      wsRef.current = null;
+    };
+  }, [liveOpen, liveRoomId]);
+
+  // auto-scroll chat and focus input when messages change
+  useEffect(() => {
+    if (chatAreaRef.current) {
+      chatAreaRef.current.scrollTop = chatAreaRef.current.scrollHeight;
+    }
+    if (liveOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [liveMessages, liveOpen]);
+
+  // allow closing live panel with Escape
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape' && liveOpen) leaveLive(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [liveOpen]);
+
+  const sendLiveMessage = () => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      alert('Not connected to live session.');
+      return;
+    }
+    const payload = liveInput.trim();
+    if (!payload) return;
+    wsRef.current.send(payload);
+    setLiveMessages(m => [...m, { text: payload, self: true, time: Date.now() }]);
+    setLiveInput('');
+  };
+
   // Group into upcoming vs past
   const now = new Date();
   const upcomingInterviews = interviews.filter(i => new Date(i.Interview_DateTime) >= now);
@@ -125,7 +226,7 @@ const Interviews = () => {
     <div className="space-y-6 p-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-white">Interview Schedule</h2>
-        <p className="text-sm text-slate-400 mt-1">Manage recruiting interview timetables, modes, and notes.</p>
+        <p className="text-sm text-slate-400 mt-1">Manage interview schedules, modes, and notes.</p>
       </div>
 
       {error && (
@@ -143,7 +244,7 @@ const Interviews = () => {
         <div className="glass-panel text-center py-16 border border-slate-800 rounded-2xl">
           <Calendar className="h-10 w-10 text-slate-600 mx-auto mb-3" />
           <h4 className="font-semibold text-slate-300">No scheduled interviews</h4>
-          <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">Click "Schedule Interview" from any candidate's profile detailed view to book a meeting slot.</p>
+          <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">Click "Schedule Interview" on a candidate's profile to book a meeting slot.</p>
         </div>
       ) : (
         <div className="space-y-8">
@@ -195,6 +296,21 @@ const Interviews = () => {
                       <Edit className="h-3 w-3 mr-1" />
                       <span>Reschedule</span>
                     </button>
+                    <button
+                      onClick={() => joinLive(itv.Interview_ID)}
+                      aria-label={`Join live interview room ${itv.Interview_ID}`}
+                      className="px-2.5 py-1.5 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 rounded-lg text-[10px] font-bold transition flex items-center"
+                    >
+                      <Video className="h-3 w-3 mr-1" />
+                      <span>Start / Join Live</span>
+                    </button>
+                    <button
+                      onClick={() => fetchSmartQuestions(itv.Job_ID, itv.Candidate_ID)}
+                      className="px-2.5 py-1.5 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 rounded-lg text-[10px] font-bold transition flex items-center"
+                    >
+                      <AlertCircle className="h-3 w-3 mr-1" />
+                      <span>Generate Questions</span>
+                    </button>
                     {itv.Status !== 'Cancelled' && (
                       <button
                         onClick={() => handleCancelInterview(itv.Interview_ID, itv)}
@@ -214,6 +330,19 @@ const Interviews = () => {
                   </div>
                 </div>
               ))}
+              {askedQuestions.length > 0 && (
+                <div className="col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-4">
+                  <h4 className="font-bold text-slate-100 mb-2">Suggested Interview Questions</h4>
+                  <ol className="list-decimal pl-5 text-slate-300">
+                    {askedQuestions.map((q, idx) => (
+                      <li key={idx} className="mb-2">
+                        <div className="text-sm text-slate-100">{q.question}</div>
+                        <div className="text-xs text-slate-400">{q.category} — {q.difficulty}</div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
               {upcomingInterviews.length === 0 && (
                 <div className="col-span-2 text-center py-6 text-xs text-slate-500 italic">No upcoming sessions.</div>
               )}
@@ -350,6 +479,43 @@ const Interviews = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Live Interview Panel */}
+      {liveOpen && (
+        <div className="fixed inset-0 z-60 flex items-end justify-center p-4">
+          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-bold text-slate-100">Live Interview — Room {liveRoomId}</h4>
+              <div className="flex items-center space-x-2">
+                <button onClick={leaveLive} aria-label="Close live interview panel" className="px-2 py-1 text-xs rounded bg-rose-700/20 text-rose-300">Close</button>
+              </div>
+            </div>
+
+            <div ref={chatAreaRef} className="h-64 overflow-auto bg-slate-950/20 p-3 rounded-md border border-slate-800 mb-3">
+              {liveMessages.map((m, idx) => (
+                <div key={idx} className={`mb-2 ${m.system ? 'text-slate-400 text-xs italic' : (m.self ? 'text-right' : 'text-left')}`}>
+                  <div className="inline-block max-w-[80%] px-3 py-1.5 rounded-md bg-slate-800 text-slate-200 text-[13px]">
+                    {m.text}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex space-x-2">
+              <input
+                ref={inputRef}
+                aria-label="Live chat message"
+                value={liveInput}
+                onChange={(e) => setLiveInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') sendLiveMessage(); }}
+                placeholder="Type a message or paste notes..."
+                className="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl outline-none text-slate-100"
+              />
+              <button aria-label="Send live message" onClick={sendLiveMessage} className="px-3 py-2 bg-indigo-600 rounded-xl text-white">Send</button>
+            </div>
           </div>
         </div>
       )}

@@ -6,12 +6,22 @@ import { LayoutDashboard, Briefcase, Upload, LogOut, User as UserIcon, ShieldAle
 const Sidebar = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
 
-  const navItems = [
-    { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/jobs', label: 'Jobs', icon: Briefcase },
-    { to: '/upload', label: 'Resume Upload', icon: Upload },
-    { to: '/interviews', label: 'Interviews', icon: Calendar },
-  ];
+  const navItems = user?.Role === 'Candidate'
+    ? [
+        { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+        { to: '/coach', label: 'Practice & Coach', icon: UserIcon },
+        { to: '/assessments', label: 'Assessments', icon: Calendar },
+        { to: '/interviews', label: 'Live Interviews', icon: Calendar },
+        { to: '/upload', label: 'My Resumes', icon: Upload },
+      ]
+    : [
+        { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+        { to: '/jobs', label: 'Jobs', icon: Briefcase },
+        { to: '/upload', label: 'Resume Upload', icon: Upload },
+        { to: '/assessments', label: 'Assessments', icon: Calendar },
+        { to: '/interviews', label: 'Interviews', icon: Calendar },
+        { to: '/coach', label: 'Candidate Coach', icon: UserIcon },
+      ];
 
   const sidebarContent = (
     <div className="flex flex-col h-full w-full">

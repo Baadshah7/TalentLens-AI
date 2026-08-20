@@ -9,6 +9,8 @@ import UploadPage from './pages/Upload';
 import CandidateDetail from './pages/CandidateDetail';
 import CandidateCompare from './pages/CandidateCompare';
 import Interviews from './pages/Interviews';
+import CandidateCoach from './pages/CandidateCoach';
+import Assessments from './pages/Assessments';
 
 // Auth Route Wrapper
 const MainLayout = ({ children }) => {
@@ -116,6 +118,22 @@ function AppContent() {
         element={
           <MainLayout>
             <Interviews />
+          </MainLayout>
+        }
+      />
+      <Route
+        path="/assessments"
+        element={
+          <MainLayout>
+            <Assessments />
+          </MainLayout>
+        }
+      />
+      <Route
+        path="/coach"
+        element={
+          <MainLayout>
+            <CandidateCoach />
           </MainLayout>
         }
       />

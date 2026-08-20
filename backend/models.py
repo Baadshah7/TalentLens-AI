@@ -223,3 +223,45 @@ class AuditLog(Base):
 
     # Relationships
     user = relationship("User", back_populates="audit_logs")
+
+
+class AssessmentTest(Base):
+    __tablename__ = "assessment_tests"
+
+    Test_ID = Column(Integer, primary_key=True, index=True)
+    Title = Column(String, nullable=False)
+    Job_ID = Column(Integer, ForeignKey("jobs.Job_ID", ondelete="SET NULL"), nullable=True)
+    Duration_Sec = Column(Integer, default=600)  # default 10 minutes
+    Created_By = Column(Integer, ForeignKey("users.User_ID", ondelete="SET NULL"), nullable=True)
+    Created_At = Column(DateTime, default=datetime.datetime.utcnow)
+
+    questions = relationship("AssessmentQuestion", back_populates="test", cascade="all, delete-orphan")
+
+
+class AssessmentQuestion(Base):
+    __tablename__ = "assessment_questions"
+
+    Question_ID = Column(Integer, primary_key=True, index=True)
+    Test_ID = Column(Integer, ForeignKey("assessment_tests.Test_ID", ondelete="CASCADE"), nullable=False)
+    Text = Column(String, nullable=False)
+    Options = Column(JSON, default=list)
+    Correct_Index = Column(Integer, nullable=False, default=0)
+    Points = Column(Integer, default=1)
+
+    test = relationship("AssessmentTest", back_populates="questions")
+
+
+class AssessmentResult(Base):
+    __tablename__ = "assessment_results"
+
+    Result_ID = Column(Integer, primary_key=True, index=True)
+    Test_ID = Column(Integer, ForeignKey("assessment_tests.Test_ID", ondelete="SET NULL"), nullable=True)
+    Candidate_ID = Column(Integer, ForeignKey("candidates.Candidate_ID", ondelete="SET NULL"), nullable=True)
+    Score = Column(Float, default=0.0)
+    Max_Score = Column(Float, default=0.0)
+    Answers = Column(JSON, nullable=True)  # list of selected indices
+    Completed_At = Column(DateTime, default=datetime.datetime.utcnow)
+
+    # relationships
+    test = relationship("AssessmentTest")
+    candidate = relationship("Candidate")

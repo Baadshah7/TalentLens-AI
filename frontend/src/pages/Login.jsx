@@ -49,12 +49,21 @@ const Login = () => {
             TL
           </div>
           <h2 className="text-2xl font-bold tracking-tight text-white">
-            {isRegister ? 'Create Recruiter Account' : 'Sign In to TalentLens'}
+            {isRegister
+              ? role === 'Candidate'
+                ? 'Create Candidate Account'
+                : role === 'Admin'
+                  ? 'Create Administrator Account'
+                  : 'Create Recruiter Account'
+              : 'Sign In to TalentLens'
+            }
           </h2>
           <p className="text-sm text-slate-400 mt-1.5">
-            {isRegister 
-              ? 'Register to publish job listings and process candidates' 
-              : 'Enter your credentials to access the recruiter dashboard'
+            {isRegister
+              ? role === 'Candidate'
+                ? 'Register to practice interviews, take assessments, and get coaching.'
+                : 'Register to publish job listings and process candidates.'
+              : 'Enter your credentials to access your dashboard'
             }
           </p>
         </div>
@@ -100,33 +109,44 @@ const Login = () => {
           </div>
 
           {isRegister && (
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Organization Role</label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setRole('Recruiter')}
-                  className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
-                    role === 'Recruiter'
-                      ? 'bg-brand-600/10 border-brand-500 text-brand-400 font-bold'
-                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  Recruiter
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole('Admin')}
-                  className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
-                    role === 'Admin'
-                      ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400 font-bold'
-                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  Administrator
-                </button>
-              </div>
-            </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Account Type</label>
+                  <div className="grid grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setRole('Recruiter')}
+                      className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                        role === 'Recruiter'
+                          ? 'bg-brand-600/10 border-brand-500 text-brand-400 font-bold'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      Recruiter
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRole('Admin')}
+                      className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                        role === 'Admin'
+                          ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400 font-bold'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      Administrator
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRole('Candidate')}
+                      className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                        role === 'Candidate'
+                          ? 'bg-emerald-600/10 border-emerald-500 text-emerald-400 font-bold'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      Candidate
+                    </button>
+                  </div>
+                </div>
           )}
 
           <div>
