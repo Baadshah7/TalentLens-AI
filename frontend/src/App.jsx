@@ -11,6 +11,8 @@ import CandidateCompare from './pages/CandidateCompare';
 import Interviews from './pages/Interviews';
 import CandidateCoach from './pages/CandidateCoach';
 import Assessments from './pages/Assessments';
+import AdminAssessments from './pages/AdminAssessments';
+import Results from './pages/Results';
 
 // Auth Route Wrapper
 const MainLayout = ({ children }) => {
@@ -126,6 +128,22 @@ function AppContent() {
         element={
           <MainLayout>
             <Assessments />
+          </MainLayout>
+        }
+      />
+      <Route
+        path="/admin/assessments"
+        element={
+          <MainLayout>
+            <AdminAssessments />
+          </MainLayout>
+        }
+      />
+      <Route
+        path="/results"
+        element={
+          <MainLayout>
+            <Results />
           </MainLayout>
         }
       />

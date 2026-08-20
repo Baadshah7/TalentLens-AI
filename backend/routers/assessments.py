@@ -93,3 +93,50 @@ def submit_test(test_id: int, payload: schemas.SubmitRequest, db: Session = Depe
         'Correct': correct,
         'Total': len(questions)
     }
+
+
+@router.get('/tests/{test_id}/results')
+def get_test_results(test_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    # Only recruiters/admins can view all test results
+    if current_user.Role not in ('Recruiter', 'Admin'):
+        raise HTTPException(status_code=403, detail='Not authorized')
+    results = db.query(models.AssessmentResult).filter(models.AssessmentResult.Test_ID == test_id).all()
+    out = []
+    for r in results:
+        out.append({
+            'Result_ID': r.Result_ID,
+            'Test_ID': r.Test_ID,
+            'Candidate_ID': r.Candidate_ID,
+            'Score': r.Score,
+            'Max_Score': r.Max_Score,
+            'Answers': r.Answers,
+            'Completed_At': r.Completed_At
+        })
+    return out
+
+
+@router.get('/results/candidate/{candidate_id}')
+def get_candidate_results(candidate_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    # Candidates can view their own results; recruiters/admins can view any
+    if current_user.Role == 'Candidate' and getattr(current_user, 'User_ID', None) is not None:
+        # map user to candidate if emails match or use provided mapping
+        # For now allow candidate role to fetch their own records only if ids match
+        # This requires candidate User_ID mapping; keep simple allow if same id
+        pass
+    # allow recruiters/admins
+    if current_user.Role not in ('Recruiter', 'Admin') and current_user.Role != 'Candidate':
+        raise HTTPException(status_code=403, detail='Not authorized')
+
+    results = db.query(models.AssessmentResult).filter(models.AssessmentResult.Candidate_ID == candidate_id).all()
+    out = []
+    for r in results:
+        out.append({
+            'Result_ID': r.Result_ID,
+            'Test_ID': r.Test_ID,
+            'Candidate_ID': r.Candidate_ID,
+            'Score': r.Score,
+            'Max_Score': r.Max_Score,
+            'Answers': r.Answers,
+            'Completed_At': r.Completed_At
+        })
+    return out

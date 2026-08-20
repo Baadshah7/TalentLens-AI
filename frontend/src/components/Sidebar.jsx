@@ -11,6 +11,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         { to: '/', label: 'Dashboard', icon: LayoutDashboard },
         { to: '/coach', label: 'Practice & Coach', icon: UserIcon },
         { to: '/assessments', label: 'Assessments', icon: Calendar },
+        { to: '/results', label: 'My Results', icon: Calendar },
         { to: '/interviews', label: 'Live Interviews', icon: Calendar },
         { to: '/upload', label: 'My Resumes', icon: Upload },
       ]
@@ -21,6 +22,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         { to: '/assessments', label: 'Assessments', icon: Calendar },
         { to: '/interviews', label: 'Interviews', icon: Calendar },
         { to: '/coach', label: 'Candidate Coach', icon: UserIcon },
+        { to: '/admin/assessments', label: 'Manage Assessments', icon: Calendar },
       ];
 
   const sidebarContent = (
