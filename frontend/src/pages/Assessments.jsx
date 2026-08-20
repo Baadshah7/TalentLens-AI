@@ -50,6 +50,12 @@ const Assessments = () => {
 
   const handleSubmit = async () => {
     if (!test) return;
+    // stop timer immediately on submit
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setTimeLeft(0);
     setLoading(true);
     try {
       const res = await axios.post(`/assessments/tests/${test.Test_ID}/submit`, { Answers: answers });
@@ -96,8 +102,8 @@ const Assessments = () => {
 
             {!result && (
               <div className="flex items-center space-x-3">
-                <button onClick={handleSubmit} disabled={loading} className="px-4 py-2 bg-indigo-600 rounded-lg text-white">{loading ? 'Submitting...' : 'Submit Answers'}</button>
-                <button onClick={() => { setAnswers(Array(test.Questions.length).fill(-1)); }} className="px-3 py-2 border border-slate-800 rounded-lg text-slate-300">Reset</button>
+                <button onClick={handleSubmit} disabled={loading || !!result} className="px-4 py-2 bg-indigo-600 rounded-lg text-white">{loading ? 'Submitting...' : 'Submit Answers'}</button>
+                <button onClick={() => { setAnswers(Array(test.Questions.length).fill(-1)); }} disabled={loading || !!result} className="px-3 py-2 border border-slate-800 rounded-lg text-slate-300">Reset</button>
               </div>
             )}
 
