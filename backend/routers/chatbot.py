@@ -39,7 +39,9 @@ def generate_interviewer_questions(job_id: int, candidate_id: Optional[int] = No
 
 
 @router.post('/generate/coach')
-def generate_coach_feedback(question: str, sample_answer: Optional[str] = None):
+def generate_coach_feedback(body: schemas.ChatbotQuery):
+    question = body.question
+    sample_answer = body.sample_answer
     if not question:
         raise HTTPException(status_code=400, detail='Question is required')
     fb = coach_feedback(sample_answer or '', question)

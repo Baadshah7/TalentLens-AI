@@ -337,3 +337,10 @@ class SubmitResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# Chatbot request bodies
+class ChatbotQuery(BaseModel):
+    question: str
+    sample_answer: Optional[str] = None
+
