@@ -100,6 +100,38 @@ graph TD
 
 ---
 
+## Developer Quick Start
+
+Minimal commands to get the project running locally (Windows Powershell):
+
+1. Activate the workspace virtualenv (created at repository root):
+```powershell
+.venv\Scripts\Activate.ps1
+pip install -r backend\requirements.txt
+```
+
+2. Start the backend (from repository root):
+```powershell
+cd backend
+..\.venv\Scripts\python -m uvicorn main:app --reload --port 8000
+```
+
+3. Run the test suite (from repository root):
+```powershell
+.venv\Scripts\python -m pytest -q
+```
+
+4. Start the frontend dev server:
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+If you run into missing Python packages, install them into the `.venv` shown above. For frontend issues, ensure Node.js (v16+) and npm are installed.
+
+---
+
 ## 3. Pre-Seeded Demo Accounts
 
 The database comes pre-seeded with sample users and resumes for evaluation:
