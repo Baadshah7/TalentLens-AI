@@ -223,6 +223,7 @@ const CandidateDetail = () => {
   };
 
   const explanation = scoreInfo.Explanation || { strengths: [], gaps: [], recommendation: 'Low Match', missing_skills: [] };
+  const evidence = explanation.evidence || {};
 
   const getScoreColor = (score) => {
     if (score >= 70) return 'text-emerald-400 bg-emerald-950/40 border-emerald-900';
@@ -520,6 +521,56 @@ const CandidateDetail = () => {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Card: Evidence-backed candidate intelligence */}
+          <div className="glass-panel border border-slate-800/80 rounded-2xl p-6 space-y-4">
+            <div>
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Candidate Intelligence Summary</h4>
+              <p className="text-[10px] text-slate-500 mt-1">Evidence below is derived from parsed, job-relevant resume data.</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {[
+                ['Required skills', evidence.required_skills || []],
+                ['Preferred skills', evidence.preferred_skills || []]
+              ].map(([label, items]) => (
+                <details key={label} className="border border-slate-800 rounded-lg bg-slate-950/40 p-3">
+                  <summary className="cursor-pointer text-[11px] font-semibold text-slate-300">{label} ({items.filter(item => item.matched).length}/{items.length} supported)</summary>
+                  <div className="mt-2 space-y-2">
+                    {items.length === 0 ? <p className="text-[10px] text-slate-500">No requirements provided.</p> : items.map(item => (
+                      <div key={item.requirement} className="text-[10px]">
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-300">{item.requirement}</span>
+                          <span className={item.matched ? 'text-emerald-400' : 'text-rose-400'}>{item.match_type || 'missing'}</span>
+                        </div>
+                        {item.supporting_evidence?.length > 0 ? <p className="text-slate-500 mt-0.5">{item.supporting_evidence.join(' ')}</p> : <p className="text-rose-400/70 mt-0.5">No reliable supporting evidence detected.</p>}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              ))}
+            </div>
+
+            {[
+              ['Relevant experience', evidence.experience || [], item => `${item.role || 'Role not extracted'} (${item.duration_months || 0} months): ${item.evidence || 'No description extracted.'}`],
+              ['Project evidence', evidence.projects || [], item => `${item.project || 'Project not extracted'}${item.technologies?.length ? ` [${item.technologies.join(', ')}]` : ''}: ${item.evidence || 'No description extracted.'}`],
+              ['Certification evidence', evidence.certifications || [], item => `${item.requirement}: ${item.supporting_evidence?.join(', ') || 'No matching parsed certification.'}`]
+            ].map(([label, items, formatItem]) => (
+              <details key={label} className="border border-slate-800 rounded-lg bg-slate-950/40 p-3">
+                <summary className="cursor-pointer text-[11px] font-semibold text-slate-300">{label}</summary>
+                <ul className="mt-2 space-y-1.5 text-[10px] text-slate-400">
+                  {items.length === 0 ? <li className="text-slate-500">No supporting evidence detected.</li> : items.map((item, index) => <li key={index}>{formatItem(item)}</li>)}
+                </ul>
+              </details>
+            ))}
+
+            {evidence.education && (
+              <div className="border border-slate-800 rounded-lg bg-slate-950/40 p-3 text-[10px] text-slate-400">
+                <span className="font-semibold text-slate-300">Education:</span> {evidence.education.candidate_degree || 'No degree extracted'}{evidence.education.institution ? `, ${evidence.education.institution}` : ''} compared with {evidence.education.required || 'no minimum specified'}.
+              </div>
+            )}
+            <p className="text-[10px] text-slate-500">{explanation.confidence_rationale || 'Confidence is based on available structured resume evidence.'}</p>
           </div>
 
           {/* Card: Extracted Details Profile */}

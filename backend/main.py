@@ -6,7 +6,7 @@ from database import engine
 from routers import auth, jobs, candidates, dashboard, interviews, chatbot
 from routers import assessments
 
-# Create database tables (SQLite dev)
+# Create missing database tables for the configured database.
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(

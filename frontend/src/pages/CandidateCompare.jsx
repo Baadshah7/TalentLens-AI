@@ -208,14 +208,18 @@ const CandidateCompare = () => {
                 <td className="p-4 font-semibold text-slate-300 align-top">Key Strengths</td>
                 {candidates.map((cand) => {
                   const strengths = cand.screening_results?.[0]?.Explanation?.strengths || [];
+                  const evidence = cand.screening_results?.[0]?.Explanation?.evidence || {};
                   return (
                     <td key={cand.Candidate_ID} className="p-4 border-l border-slate-800/60 align-top">
-                      {strengths.length === 0 ? (
+                      {strengths.length === 0 && !evidence.required_skills ? (
                         <span className="text-slate-500 italic">None logged</span>
                       ) : (
                         <ul className="space-y-1 list-disc pl-3 text-slate-300">
                           {strengths.map((str, idx) => (
                             <li key={idx} className="leading-relaxed">{str}</li>
+                          ))}
+                          {evidence.required_skills?.filter(item => item.matched).slice(0, 3).map(item => (
+                            <li key={`evidence-${item.requirement}`} className="leading-relaxed">{item.requirement}: {item.match_type} match</li>
                           ))}
                         </ul>
                       )}

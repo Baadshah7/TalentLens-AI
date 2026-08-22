@@ -121,6 +121,43 @@ const UploadPage = () => {
     fetchCandidates();
   }, [selectedJobId, minScore, maxScore, selectedRecs, skillsFilter, decisionStatusFilter]);
 
+  useEffect(() => {
+    if (!selectedJobId || !candidates.some(c => ['Pending', 'Processing'].includes(c.Processing_Status))) {
+      return undefined;
+    }
+
+    const refreshTimer = setInterval(fetchCandidates, 3000);
+    return () => clearInterval(refreshTimer);
+  }, [selectedJobId, candidates]);
+
+  useEffect(() => {
+    const activeItems = uploadQueue.filter(item => item.processingId && item.processingStatus !== 'COMPLETED' && item.processingStatus !== 'FAILED');
+    if (activeItems.length === 0) return undefined;
+
+    const refreshStatuses = async () => {
+      const updates = await Promise.all(activeItems.map(async item => {
+        try {
+          const response = await axios.get(`/candidates/processing/${item.processingId}`);
+          return [item.processingId, response.data];
+        } catch {
+          return null;
+        }
+      }));
+      const validUpdates = updates.filter(Boolean);
+      if (validUpdates.length > 0) {
+        setUploadQueue(prev => prev.map(item => {
+          const update = validUpdates.find(([id]) => id === item.processingId);
+          return update ? { ...item, processingStatus: update[1].Status, status: update[1].Status === 'FAILED' ? 'error' : 'accepted', error: update[1].Error_Message || '' } : item;
+        }));
+        fetchCandidates();
+      }
+    };
+
+    refreshStatuses();
+    const refreshTimer = setInterval(refreshStatuses, 3000);
+    return () => clearInterval(refreshTimer);
+  }, [uploadQueue]);
+
   const selectedJob = jobs.find(j => j.Job_ID === Number(selectedJobId));
 
   const toggleBlindMode = async () => {
@@ -245,17 +282,16 @@ const UploadPage = () => {
           if (match) {
             return {
               ...item,
-              status: match.error ? 'error' : 'uploaded',
-              error: match.error || ''
+              status: match.error ? 'error' : 'accepted',
+              error: match.error || '',
+              processingId: match.processing_id,
+              candidateId: match.candidate_id,
+              processingStatus: match.processing_status
             };
           }
           return item;
         });
       });
-
-      setTimeout(() => {
-        setUploadQueue(prev => prev.filter(item => item.status === 'error' || item.status === 'queued'));
-      }, 3000);
 
       fetchCandidates();
 
@@ -490,13 +526,15 @@ const UploadPage = () => {
                       <span className="text-[9px] text-slate-500">({item.size})</span>
                     </div>
                     <div className="flex items-center space-x-2 flex-shrink-0">
-                      {item.status === 'uploaded' && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+                      {item.status === 'accepted' && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
                       {item.status === 'error' && (
                         <span className="text-[9px] text-rose-400 font-semibold max-w-[80px] truncate" title={item.error}>
                           {item.error}
                         </span>
                       )}
                       {item.status === 'queued' && <span className="text-indigo-400 text-[8px] font-bold uppercase">Queued</span>}
+                      {item.status === 'accepted' && <span className="text-emerald-400 text-[8px] font-bold uppercase">{item.processingStatus || 'Accepted for processing'}</span>}
+                      {item.status === 'error' && item.processingId && <span className="text-rose-400 text-[8px] font-bold uppercase">Processing failed</span>}
                       <button onClick={() => removeQueueItem(item.id)} className="text-slate-500 hover:text-rose-400">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

@@ -1,4 +1,5 @@
 import os
+import uuid
 import shutil
 import docx
 import pdfplumber
@@ -15,8 +16,9 @@ import models
 import schemas
 from dependencies import get_current_user, get_current_admin
 from utils import log_action
-from parser import parse_resume_full, extract_name_from_filename, check_file_corrupted
+from parser import extract_name_from_filename, check_file_corrupted
 from scoring import score_candidate
+from tasks import process_resume
 
 # ReportLab imports for PDF Generation
 from reportlab.lib.pagesizes import letter
@@ -46,72 +48,6 @@ def check_file_signature(file_path: str, ext: str) -> bool:
         return False
     return True
 
-def save_parsed_resume_to_db(candidate: models.Candidate, parsed_data: dict, db: Session):
-    """Saves all parsed resume subcomponents into candidate relational tables."""
-    if parsed_data.get("Name"):
-        candidate.Name = parsed_data["Name"]
-    if parsed_data.get("Email"):
-        candidate.Email = parsed_data["Email"]
-    if parsed_data.get("Phone"):
-        candidate.Phone = parsed_data["Phone"]
-    if parsed_data.get("Location"):
-        candidate.Location = parsed_data["Location"]
-        
-    db.commit()
-
-    # 1. Save Skills
-    for sk in parsed_data.get("skills", []):
-        skill_entry = models.CandidateSkill(
-            Candidate_ID=candidate.Candidate_ID,
-            Skill=sk["Skill"],
-            Skill_Level=sk["Skill_Level"],
-            Evidence_Text=sk["Evidence_Text"]
-        )
-        db.add(skill_entry)
-        
-    # 2. Save Experience
-    for ex in parsed_data.get("experiences", []):
-        exp_entry = models.CandidateExperience(
-            Candidate_ID=candidate.Candidate_ID,
-            Company=ex["Company"],
-            Role=ex["Role"],
-            Duration_Months=ex["Duration_Months"],
-            Description=ex["Description"],
-            Is_Relevant=ex["Is_Relevant"]
-        )
-        db.add(exp_entry)
-        
-    # 3. Save Education
-    for ed in parsed_data.get("educations", []):
-        edu_entry = models.CandidateEducation(
-            Candidate_ID=candidate.Candidate_ID,
-            Degree=ed["Degree"],
-            Institution=ed["Institution"],
-            Graduation_Year=ed["Graduation_Year"]
-        )
-        db.add(edu_entry)
-        
-    # 4. Save Projects
-    for pr in parsed_data.get("projects", []):
-        proj_entry = models.CandidateProject(
-            Candidate_ID=candidate.Candidate_ID,
-            Project_Name=pr["Project_Name"],
-            Technologies=pr["Technologies"],
-            Description=pr["Description"]
-        )
-        db.add(proj_entry)
-        
-    # 5. Save Certifications
-    for cr in parsed_data.get("certifications", []):
-        cert_entry = models.CandidateCertification(
-            Candidate_ID=candidate.Candidate_ID,
-            Certification_Name=cr["Certification_Name"],
-            Issuing_Org=cr["Issuing_Org"]
-        )
-        db.add(cert_entry)
-        
-    db.commit()
-
 @router.post("/upload/{job_id}")
 def upload_resumes(
     job_id: int,
@@ -129,7 +65,7 @@ def upload_resumes(
     results = []
     
     for file in files:
-        filename = file.filename
+        filename = os.path.basename(file.filename or "resume")
         _, ext = os.path.splitext(filename)
         ext = ext.lower()
         
@@ -141,7 +77,8 @@ def upload_resumes(
             })
             continue
 
-        file_path = os.path.join(upload_dir, filename)
+        stored_filename = f"{uuid.uuid4().hex}_{filename}"
+        file_path = os.path.join(upload_dir, stored_filename)
         
         try:
             size = 0
@@ -180,44 +117,43 @@ def upload_resumes(
                 Job_ID=job_id
             )
             db.add(candidate)
-            db.commit()
-            db.refresh(candidate)
+            db.flush()
 
             overall_score = 0.0
             error_details = None
-            
-            if not is_corrupted:
-                try:
-                    parsed_data = parse_resume_full(file_path, filename)
-                    save_parsed_resume_to_db(candidate, parsed_data, db)
-                    
-                    candidate.Processing_Status = "Parsed"
-                    db.commit()
-                    
-                    score_res = score_candidate(candidate.Candidate_ID, job_id, db)
-                    overall_score = score_res.Overall_Score
-                    
-                except Exception as parse_err:
-                    print(f"Failed parsing/scoring candidate {candidate.Candidate_ID}: {parse_err}")
-                    candidate.Processing_Status = "Failed"
-                    db.commit()
-                    is_corrupted = True
-                    error_details = f"Parsing failure: {str(parse_err)}"
-            else:
-                error_details = "File magic number signature mismatch or corrupted structure."
 
-            details = f"Processed resume '{filename}' for job ID {job_id}. Overall Match Score: {overall_score}%."
             if is_corrupted:
-                details += f" FAILED: {error_details}"
+                error_details = "File magic number signature mismatch or corrupted structure."
+                log_action(db, user_id=current_user.User_ID, action="Candidate Processing", details=f"Rejected resume '{filename}' for job ID {job_id}.")
+                processing_id = None
             else:
-                details += " SUCCESS."
-                
-            log_action(
-                db, 
-                user_id=current_user.User_ID, 
-                action="Candidate Processing", 
-                details=details
-            )
+                processing_id = str(uuid.uuid4())
+                db.add(models.ResumeProcessingTask(
+                    Task_ID=processing_id,
+                    Candidate_ID=candidate.Candidate_ID,
+                    Submitted_By=current_user.User_ID,
+                    Status="PENDING",
+                ))
+                db.commit()
+                try:
+                    process_resume.delay(processing_id)
+                except Exception:
+                    db.rollback()
+                    candidate.Processing_Status = "Failed"
+                    task = db.query(models.ResumeProcessingTask).filter(models.ResumeProcessingTask.Task_ID == processing_id).first()
+                    if task:
+                        task.Status = "FAILED"
+                        task.Error_Message = "Resume processing could not be queued."
+                    db.commit()
+                    error_details = "Resume processing could not be queued."
+
+            if not is_corrupted:
+                log_action(
+                    db,
+                    user_id=current_user.User_ID,
+                    action="Candidate Upload",
+                    details=f"Accepted resume '{filename}' for job ID {job_id} for background processing.",
+                )
 
             results.append({
                 "candidate_id": candidate.Candidate_ID,
@@ -225,20 +161,35 @@ def upload_resumes(
                 "candidate_name": candidate.Name,
                 "status": "Uploaded",
                 "processing_status": candidate.Processing_Status,
+                "processing_id": processing_id,
                 "overall_score": overall_score,
                 "error": error_details
             })
 
         except Exception as e:
+            db.rollback()
             if os.path.exists(file_path):
                 os.remove(file_path)
             results.append({
                 "filename": filename,
                 "status": "Rejected",
-                "error": f"Internal processing error: {str(e)}"
+                "error": "Upload could not be accepted. Please try again."
             })
 
     return {"results": results}
+
+@router.get("/processing/{processing_id}", response_model=schemas.ResumeProcessingStatusResponse)
+def get_processing_status(
+    processing_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    task = db.query(models.ResumeProcessingTask).filter(
+        models.ResumeProcessingTask.Task_ID == processing_id
+    ).first()
+    if not task or (task.Submitted_By != current_user.User_ID and current_user.Role != "Admin"):
+        raise HTTPException(status_code=404, detail="Processing task not found")
+    return task
 
 @router.get("/job/{job_id}", response_model=List[schemas.CandidateResponse])
 def get_candidates_by_job(

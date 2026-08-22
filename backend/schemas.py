@@ -158,6 +158,18 @@ class CandidateResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class ResumeProcessingStatusResponse(BaseModel):
+    Task_ID: str
+    Candidate_ID: int
+    Status: str
+    Submitted_At: datetime
+    Completed_At: Optional[datetime] = None
+    Error_Message: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 # Candidate detailed sub-schemas
 class CandidateSkillResponse(BaseModel):
     Skill_ID: int

@@ -1,4 +1,5 @@
 import os
+from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 import models
 from semantic import get_embedding, cosine_similarity
@@ -16,6 +17,188 @@ DEGREE_HIERARCHY = {
     "High School": 1,
     "None": 0
 }
+
+
+def _skill_evidence(requirement: str, candidate_skills: list, candidate_experiences: list,
+                    candidate_projects: list, taxonomy: dict, db: Session) -> Dict[str, Any]:
+    requirement_lower = requirement.lower()
+    skill_by_name = {skill.Skill.lower(): skill for skill in candidate_skills}
+    if requirement_lower in skill_by_name:
+        skill = skill_by_name[requirement_lower]
+        return {
+            "requirement": requirement,
+            "match_type": "exact",
+            "confidence": "High",
+            "matched": True,
+            "supporting_evidence": [skill.Evidence_Text or f"Skill entry: {skill.Skill}"],
+        }
+
+    related = []
+    for parent, children in taxonomy.items():
+        child_names = [child.lower() for child in children]
+        if parent.lower() == requirement_lower:
+            related = child_names
+            break
+        if requirement_lower in child_names:
+            related = [parent.lower()] + [child for child in child_names if child != requirement_lower]
+            break
+
+    for related_name in related:
+        if related_name in skill_by_name:
+            skill = skill_by_name[related_name]
+            return {
+                "requirement": requirement,
+                "match_type": "related",
+                "confidence": "Medium",
+                "matched": True,
+                "supporting_evidence": [skill.Evidence_Text or f"Related skill entry: {skill.Skill}"],
+            }
+
+    # Semantic matches remain deliberately conservative and cite only parsed records.
+    requirement_vector = get_embedding(requirement, db)
+    semantic_candidates = []
+    for skill in candidate_skills:
+        semantic_candidates.append((skill.Skill, skill.Evidence_Text or f"Skill entry: {skill.Skill}", get_embedding(skill.Skill, db)))
+    for experience in candidate_experiences:
+        text = f"{experience.Role or ''} {experience.Description or ''}".strip()
+        if text:
+            semantic_candidates.append((experience.Role or "Experience", text[:250], get_embedding(text, db)))
+    for project in candidate_projects:
+        text = f"{project.Project_Name} {' '.join(project.Technologies or [])} {project.Description or ''}".strip()
+        if text:
+            semantic_candidates.append((project.Project_Name, text[:250], get_embedding(text, db)))
+
+    best_match = None
+    for source, evidence, vector in semantic_candidates:
+        similarity = cosine_similarity(requirement_vector, vector)
+        if best_match is None or similarity > best_match["similarity"]:
+            best_match = {"source": source, "evidence": evidence, "similarity": similarity}
+
+    if best_match and best_match["similarity"] >= SEMANTIC_THRESHOLD_SKILL:
+        return {
+            "requirement": requirement,
+            "match_type": "semantic",
+            "confidence": "Low",
+            "matched": True,
+            "similarity": round(best_match["similarity"], 4),
+            "supporting_evidence": [best_match["evidence"]],
+        }
+
+    return {
+        "requirement": requirement,
+        "match_type": "missing",
+        "confidence": "None",
+        "matched": False,
+        "supporting_evidence": [],
+        "note": "No reliable supporting evidence was detected in parsed candidate data.",
+    }
+
+
+def build_evidence_explanation(candidate: models.Candidate, job: models.Job, scores: Dict[str, float],
+                               relevant_months: int, db: Session) -> tuple[Dict[str, Any], str]:
+    candidate_skills = db.query(models.CandidateSkill).filter(models.CandidateSkill.Candidate_ID == candidate.Candidate_ID).all()
+    experiences = db.query(models.CandidateExperience).filter(models.CandidateExperience.Candidate_ID == candidate.Candidate_ID).all()
+    projects = db.query(models.CandidateProject).filter(models.CandidateProject.Candidate_ID == candidate.Candidate_ID).all()
+    educations = db.query(models.CandidateEducation).filter(models.CandidateEducation.Candidate_ID == candidate.Candidate_ID).all()
+    certifications = db.query(models.CandidateCertification).filter(models.CandidateCertification.Candidate_ID == candidate.Candidate_ID).all()
+    taxonomy = load_taxonomy()
+
+    required_evidence = [_skill_evidence(skill, candidate_skills, experiences, projects, taxonomy, db) for skill in job.Required_Skills]
+    preferred_evidence = [_skill_evidence(skill, candidate_skills, experiences, projects, taxonomy, db) for skill in job.Preferred_Skills]
+    missing_skills = [item["requirement"] for item in required_evidence if not item["matched"]]
+    direct_matches = sum(item["match_type"] == "exact" for item in required_evidence + preferred_evidence)
+    related_matches = sum(item["match_type"] == "related" for item in required_evidence + preferred_evidence)
+    semantic_matches = sum(item["match_type"] == "semantic" for item in required_evidence + preferred_evidence)
+
+    relevant_experiences = [
+        {"role": exp.Role, "duration_months": exp.Duration_Months, "evidence": (exp.Description or exp.Role or "")[:250]}
+        for exp in experiences if exp.Is_Relevant
+    ]
+    relevant_projects = [
+        {"project": project.Project_Name, "technologies": project.Technologies or [], "evidence": (project.Description or "")[:250]}
+        for project in projects if project.Description or project.Technologies
+    ]
+    required_certifications = []
+    for requirement in job.Certifications:
+        matches = [cert for cert in certifications if requirement.lower() in cert.Certification_Name.lower() or cert.Certification_Name.lower() in requirement.lower()]
+        required_certifications.append({
+            "requirement": requirement,
+            "matched": bool(matches),
+            "supporting_evidence": [f"{cert.Certification_Name} ({cert.Issuing_Org})" for cert in matches],
+        })
+
+    highest_education = max(educations, key=lambda item: DEGREE_HIERARCHY.get(item.Degree, 0), default=None)
+    education_evidence = {
+        "required": job.Min_Education,
+        "candidate_degree": highest_education.Degree if highest_education else None,
+        "institution": highest_education.Institution if highest_education else None,
+        "score": scores["education"],
+    }
+    strengths = []
+    gaps = []
+    if direct_matches:
+        strengths.append(f"{direct_matches} required or preferred skill matches are directly present in parsed skills.")
+    if related_matches:
+        strengths.append(f"{related_matches} skill matches are supported by related taxonomy entries.")
+    if relevant_experiences:
+        strengths.append(f"{relevant_months} months of parsed experience was judged relevant to the job description.")
+    if scores["projects"] >= 80 and relevant_projects:
+        strengths.append("Project evidence contains relevant technologies or responsibilities.")
+    if missing_skills:
+        gaps.append(f"Missing required skills: {', '.join(missing_skills)}")
+    if job.Min_Experience and relevant_months < job.Min_Experience * 12:
+        gaps.append(f"Relevant experience is {relevant_months} months, below the required {job.Min_Experience * 12} months.")
+    if job.Min_Education and scores["education"] < 100:
+        gaps.append(f"Parsed education does not meet the minimum '{job.Min_Education}' requirement.")
+    if any(not item["matched"] for item in required_certifications):
+        gaps.append("One or more required certifications lack a matching parsed certification.")
+
+    evidence_count = direct_matches + related_matches + len(relevant_experiences) + len(relevant_projects)
+    total_matches = direct_matches + related_matches + semantic_matches
+    if evidence_count >= 2 and total_matches and direct_matches / total_matches >= 0.7:
+        confidence = "High"
+    elif evidence_count or semantic_matches:
+        confidence = "Medium"
+    else:
+        confidence = "Low"
+
+    explanation = {
+        "strengths": strengths,
+        "gaps": gaps,
+        "recommendation": None,
+        "missing_skills": missing_skills,
+        "evidence": {
+            "required_skills": required_evidence,
+            "preferred_skills": preferred_evidence,
+            "experience": relevant_experiences,
+            "projects": relevant_projects,
+            "education": education_evidence,
+            "certifications": required_certifications,
+            "semantic_fit": {
+                "score": scores["semantic_fit"],
+                "supporting_evidence": [
+                    item["evidence"] for item in relevant_experiences + relevant_projects if item.get("evidence")
+                ][:5],
+                "note": "Semantic fit uses parsed skills, experience, and project content after sanitization.",
+            },
+            "completeness": {
+                "score": scores["completeness"],
+                "populated_sections": [
+                    section for section, present in {
+                        "contact": bool(candidate.Email or candidate.Phone or candidate.Location),
+                        "education": bool(educations),
+                        "experience_or_projects": bool(experiences or projects),
+                    }.items() if present
+                ],
+            },
+        },
+        "components": {
+            key: {"score": round(value, 2), "weight": None, "contribution": None}
+            for key, value in scores.items()
+        },
+        "confidence_rationale": "Confidence is based on direct, related, semantic, and structured resume evidence; semantic-only matches are lower confidence.",
+    }
+    return explanation, confidence
 
 def evaluate_experience_relevance(candidate_id: int, job_desc: str, db: Session) -> int:
     """Evaluates each candidate experience chunk against the job description and sets Is_Relevant."""
@@ -268,7 +451,10 @@ def score_candidate(candidate_id: int, job_id: int, db: Session) -> models.Scree
             "strengths": [],
             "gaps": ["File is corrupted or parsing failed."],
             "recommendation": "Low Match",
-            "missing_skills": job.Required_Skills
+            "missing_skills": job.Required_Skills,
+            "evidence": {},
+            "components": {},
+            "confidence_rationale": "No usable resume evidence was available.",
         }
         res.Confidence_Level = "Low"
         db.commit()
@@ -428,18 +614,27 @@ def score_candidate(candidate_id: int, job_id: int, db: Session) -> models.Scree
     else:
         recommendation_label = "Low Match"
 
-    # Derive AI Confidence level
-    total_matched_skills = exact_count + inferred_count
-    if total_matched_skills == 0:
-        confidence_level = "Low"
-    else:
-        exact_ratio = exact_count / total_matched_skills
-        if exact_ratio >= 0.70:
-            confidence_level = "High"
-        elif exact_ratio >= 0.40:
-            confidence_level = "Medium"
-        else:
-            confidence_level = "Low"
+    evidence_explanation, confidence_level = build_evidence_explanation(
+        candidate,
+        job,
+        {
+            "required_skills": req_score,
+            "preferred_skills": pref_score,
+            "experience": experience_score,
+            "education": education_score,
+            "projects": project_score,
+            "certifications": certification_score,
+            "completeness": completeness_score,
+            "semantic_fit": semantic_fit_score,
+        },
+        relevant_months,
+        db,
+    )
+    evidence_explanation["recommendation"] = recommendation_label
+    for component, component_data in evidence_explanation["components"].items():
+        weight = weights.get(component, 0.0)
+        component_data["weight"] = weight
+        component_data["contribution"] = round((component_data["score"] * weight) / total_weight, 2) if total_weight else 0.0
 
     # Write to ScreeningResult table
     res = db.query(models.ScreeningResult).filter(models.ScreeningResult.Candidate_ID == candidate_id).first()
@@ -455,12 +650,11 @@ def score_candidate(candidate_id: int, job_id: int, db: Session) -> models.Scree
     res.Completeness_Score = round(completeness_score, 2)
     res.Semantic_Score = round(semantic_fit_score, 2)
     res.Overall_Score = overall_score
-    res.Explanation = {
-        "strengths": strengths,
-        "gaps": gaps,
-        "recommendation": recommendation_label,
-        "missing_skills": missing_skills
-    }
+    # Keep the legacy summary fields while storing the richer intelligence payload.
+    evidence_explanation["strengths"] = list(dict.fromkeys(strengths + evidence_explanation["strengths"]))
+    evidence_explanation["gaps"] = list(dict.fromkeys(gaps + evidence_explanation["gaps"]))
+    evidence_explanation["missing_skills"] = missing_skills
+    res.Explanation = evidence_explanation
     res.Confidence_Level = confidence_level
     
     db.commit()

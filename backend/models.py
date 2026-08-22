@@ -86,6 +86,22 @@ class Candidate(Base):
     screening_results = relationship("ScreeningResult", back_populates="candidate", cascade="all, delete-orphan")
     recruiter_decision = relationship("RecruiterDecision", back_populates="candidate", uselist=False, cascade="all, delete-orphan")
     interviews = relationship("Interview", back_populates="candidate", cascade="all, delete-orphan")
+    processing_tasks = relationship("ResumeProcessingTask", back_populates="candidate", cascade="all, delete-orphan")
+
+
+class ResumeProcessingTask(Base):
+    __tablename__ = "resume_processing_tasks"
+
+    Task_ID = Column(String, primary_key=True, index=True)
+    Candidate_ID = Column(Integer, ForeignKey("candidates.Candidate_ID", ondelete="CASCADE"), nullable=False, unique=True)
+    Submitted_By = Column(Integer, ForeignKey("users.User_ID", ondelete="SET NULL"), nullable=True)
+    Status = Column(String, nullable=False, default="PENDING", index=True)
+    Submitted_At = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    Completed_At = Column(DateTime, nullable=True)
+    Error_Message = Column(String, nullable=True)
+
+    candidate = relationship("Candidate", back_populates="processing_tasks")
+    submitter = relationship("User")
 
 class CandidateSkill(Base):
     __tablename__ = "candidate_skills"
