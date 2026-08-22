@@ -83,11 +83,14 @@ def test_evidence_explanation_distinguishes_match_types_and_uses_parsed_data(tmp
 
     matches = {item["requirement"]: item for item in explanation["evidence"]["required_skills"]}
     assert matches["Python"]["match_type"] == "exact"
+    assert matches["Python"]["source_type"] == "parsed_skill"
+    assert matches["Python"]["source"] == "Python"
     assert matches["FastAPI"]["match_type"] == "related"
     assert matches["Rust"]["match_type"] == "missing"
     assert "Rust" in explanation["missing_skills"]
     assert "FastAPI services" in explanation["evidence"]["experience"][0]["evidence"]
     assert explanation["evidence"]["projects"][0]["project"] == "Service Platform"
+    assert explanation["evidence"]["projects"][0]["similarity"] > 0
     assert confidence in {"High", "Medium", "Low"}
 
     flattened = str(explanation)

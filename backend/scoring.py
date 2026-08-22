@@ -30,6 +30,8 @@ def _skill_evidence(requirement: str, candidate_skills: list, candidate_experien
             "match_type": "exact",
             "confidence": "High",
             "matched": True,
+            "source_type": "parsed_skill",
+            "source": skill.Skill,
             "supporting_evidence": [skill.Evidence_Text or f"Skill entry: {skill.Skill}"],
         }
 
@@ -51,6 +53,8 @@ def _skill_evidence(requirement: str, candidate_skills: list, candidate_experien
                 "match_type": "related",
                 "confidence": "Medium",
                 "matched": True,
+                "source_type": "parsed_skill",
+                "source": skill.Skill,
                 "supporting_evidence": [skill.Evidence_Text or f"Related skill entry: {skill.Skill}"],
             }
 
@@ -80,6 +84,8 @@ def _skill_evidence(requirement: str, candidate_skills: list, candidate_experien
             "match_type": "semantic",
             "confidence": "Low",
             "matched": True,
+            "source_type": "parsed_resume_section",
+            "source": best_match["source"],
             "similarity": round(best_match["similarity"], 4),
             "supporting_evidence": [best_match["evidence"]],
         }
@@ -89,6 +95,8 @@ def _skill_evidence(requirement: str, candidate_skills: list, candidate_experien
         "match_type": "missing",
         "confidence": "None",
         "matched": False,
+        "source_type": None,
+        "source": None,
         "supporting_evidence": [],
         "note": "No reliable supporting evidence was detected in parsed candidate data.",
     }
@@ -114,10 +122,21 @@ def build_evidence_explanation(candidate: models.Candidate, job: models.Job, sco
         {"role": exp.Role, "duration_months": exp.Duration_Months, "evidence": (exp.Description or exp.Role or "")[:250]}
         for exp in experiences if exp.Is_Relevant
     ]
-    relevant_projects = [
-        {"project": project.Project_Name, "technologies": project.Technologies or [], "evidence": (project.Description or "")[:250]}
-        for project in projects if project.Description or project.Technologies
-    ]
+    job_text = f"{job.Job_Title} {job.Description} {' '.join(job.Required_Skills or [])} {' '.join(job.Preferred_Skills or [])}"
+    job_vector = get_embedding(job_text, db, entity_type="job", entity_id=job.Job_ID)
+    relevant_projects = []
+    for project in projects:
+        project_text = f"{project.Project_Name} {' '.join(project.Technologies or [])} {project.Description or ''}".strip()
+        if not project_text:
+            continue
+        similarity = cosine_similarity(get_embedding(project_text, db, entity_type="candidate", entity_id=candidate.Candidate_ID), job_vector)
+        if similarity >= 0.35:
+            relevant_projects.append({
+                "project": project.Project_Name,
+                "technologies": project.Technologies or [],
+                "similarity": round(similarity, 4),
+                "evidence": project_text[:250],
+            })
     required_certifications = []
     for requirement in job.Certifications:
         matches = [cert for cert in certifications if requirement.lower() in cert.Certification_Name.lower() or cert.Certification_Name.lower() in requirement.lower()]
