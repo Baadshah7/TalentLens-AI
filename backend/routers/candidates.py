@@ -14,7 +14,7 @@ from typing import List, Optional
 from database import get_db
 import models
 import schemas
-from dependencies import get_current_user, get_current_admin
+from dependencies import get_current_user, get_current_admin, ensure_job_access
 from utils import log_action
 from parser import extract_name_from_filename, check_file_corrupted
 from scoring import score_candidate
@@ -58,6 +58,7 @@ def upload_resumes(
     job = db.query(models.Job).filter(models.Job.Job_ID == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Target job description not found")
+    ensure_job_access(job, current_user)
 
     upload_dir = os.path.join("uploads", str(job_id))
     os.makedirs(upload_dir, exist_ok=True)
@@ -205,6 +206,7 @@ def get_candidates_by_job(
     job = db.query(models.Job).filter(models.Job.Job_ID == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job description not found")
+    ensure_job_access(job, current_user)
         
     # Construct base query joining relational subscores & decisions for filtering (Phase 5)
     query = db.query(models.Candidate).filter(models.Candidate.Job_ID == job_id)
@@ -256,7 +258,7 @@ def get_candidates_by_job(
             "Email": "[HIDDEN]" if is_blind else c.Email,
             "Phone": "[HIDDEN]" if is_blind else c.Phone,
             "Location": "[HIDDEN]" if is_blind else c.Location,
-            "Resume_File_Path": c.Resume_File_Path,
+            "Resume_File_Path": os.path.basename(c.Resume_File_Path),
             "Upload_Date": c.Upload_Date,
             "Processing_Status": c.Processing_Status,
             "Job_ID": c.Job_ID,
@@ -277,6 +279,9 @@ def get_candidate_details(
         raise HTTPException(status_code=404, detail="Candidate not found")
         
     job = db.query(models.Job).filter(models.Job.Job_ID == candidate.Job_ID).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job description not found")
+    ensure_job_access(job, current_user)
     is_blind = job.Blind_Mode and not candidate.Is_Identity_Revealed
     
     # Pre-load interviews list for detailed response serialization
@@ -303,7 +308,7 @@ def get_candidate_details(
         "Email": "[HIDDEN]" if is_blind else candidate.Email,
         "Phone": "[HIDDEN]" if is_blind else candidate.Phone,
         "Location": "[HIDDEN]" if is_blind else candidate.Location,
-        "Resume_File_Path": candidate.Resume_File_Path,
+        "Resume_File_Path": os.path.basename(candidate.Resume_File_Path),
         "Upload_Date": candidate.Upload_Date,
         "Processing_Status": candidate.Processing_Status,
         "Job_ID": candidate.Job_ID,
@@ -327,6 +332,10 @@ def rescore_candidate_endpoint(
     candidate = db.query(models.Candidate).filter(models.Candidate.Candidate_ID == candidate_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    job = db.query(models.Job).filter(models.Job.Job_ID == candidate.Job_ID).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job description not found")
+    ensure_job_access(job, current_user)
         
     try:
         score_res = score_candidate(candidate_id, candidate.Job_ID, db)
@@ -338,10 +347,7 @@ def rescore_candidate_endpoint(
         )
         return score_res
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Re-scoring operation failed: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Re-scoring operation failed")
 
 @router.post("/{candidate_id}/reveal", response_model=schemas.CandidateDetailResponse)
 def reveal_candidate_identity(
@@ -353,6 +359,10 @@ def reveal_candidate_identity(
     candidate = db.query(models.Candidate).filter(models.Candidate.Candidate_ID == candidate_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    job = db.query(models.Job).filter(models.Job.Job_ID == candidate.Job_ID).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job description not found")
+    ensure_job_access(job, current_user)
         
     candidate.Is_Identity_Revealed = True
     db.commit()
@@ -377,6 +387,10 @@ def download_resume(
     candidate = db.query(models.Candidate).filter(models.Candidate.Candidate_ID == candidate_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    job = db.query(models.Job).filter(models.Job.Job_ID == candidate.Job_ID).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job description not found")
+    ensure_job_access(job, current_user)
         
     file_path = candidate.Resume_File_Path
     if not os.path.exists(file_path):
@@ -606,6 +620,9 @@ def export_candidate_pdf(
         raise HTTPException(status_code=404, detail="Candidate not found")
         
     job = db.query(models.Job).filter(models.Job.Job_ID == candidate.Job_ID).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job description not found")
+    ensure_job_access(job, current_user)
     res = db.query(models.ScreeningResult).filter(models.ScreeningResult.Candidate_ID == candidate_id).first()
     dec = candidate.recruiter_decision
     itvs = db.query(models.Interview).filter(models.Interview.Candidate_ID == candidate_id).all()

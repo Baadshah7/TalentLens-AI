@@ -62,6 +62,7 @@ db.sqlite3
 db.sqlite3-journal
 *.db
 *.db-journal
+uploads/
 
 # Flask stuff:
 instance/
@@ -153,6 +154,7 @@ activemq-data/
 .env
 .envrc
 .venv
+backend/.venv/
 env/
 venv/
 ENV/

@@ -6,7 +6,7 @@ from datetime import datetime
 from database import get_db
 import models
 import schemas
-from dependencies import get_current_user
+from dependencies import get_current_user, ensure_job_access
 from utils import log_action
 from fastapi import WebSocket, WebSocketDisconnect
 from realtime import manager
@@ -26,6 +26,9 @@ def schedule_interview(
     job = db.query(models.Job).filter(models.Job.Job_ID == interview_data.Job_ID).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job description not found")
+    if candidate.Job_ID != job.Job_ID:
+        raise HTTPException(status_code=400, detail="Candidate does not belong to this job")
+    ensure_job_access(job, current_user)
 
     new_interview = models.Interview(
         Candidate_ID=interview_data.Candidate_ID,
@@ -67,6 +70,8 @@ def list_interviews(
     current_user: models.User = Depends(get_current_user)
 ):
     query = db.query(models.Interview)
+    if current_user.Role != "Admin":
+        query = query.join(models.Job).filter(models.Job.Created_By == current_user.User_ID)
     
     if job_id is not None:
         query = query.filter(models.Interview.Job_ID == job_id)
@@ -116,6 +121,10 @@ def update_interview(
     interview = db.query(models.Interview).filter(models.Interview.Interview_ID == id).first()
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
+    job = db.query(models.Job).filter(models.Job.Job_ID == interview.Job_ID).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job description not found")
+    ensure_job_access(job, current_user)
         
     old_dt = interview.Interview_DateTime
     old_status = interview.Status
@@ -161,6 +170,10 @@ def delete_interview(
     interview = db.query(models.Interview).filter(models.Interview.Interview_ID == id).first()
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
+    job = db.query(models.Job).filter(models.Job.Job_ID == interview.Job_ID).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job description not found")
+    ensure_job_access(job, current_user)
         
     cand_id = interview.Candidate_ID
     db.delete(interview)

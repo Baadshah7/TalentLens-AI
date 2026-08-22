@@ -37,3 +37,11 @@ def get_current_admin(current_user: models.User = Depends(get_current_user)) -> 
             detail="You do not have administrative privileges to perform this action"
         )
     return current_user
+
+
+def ensure_job_access(job: models.Job, current_user: models.User) -> None:
+    """Require admins or the recruiter who owns the job for job-scoped data."""
+    if current_user.Role not in ("Recruiter", "Admin"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized for this resource")
+    if current_user.Role != "Admin" and job.Created_By != current_user.User_ID:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")

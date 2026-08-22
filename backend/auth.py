@@ -4,8 +4,13 @@ from typing import Optional, Union, Any
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-# Configuration
-SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "talentlens_super_secret_key_development_only_1234567890")
+# Configuration. Production must provide an explicit, sufficiently long secret.
+APP_ENV = os.environ.get("APP_ENV", "development").lower()
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "")
+if APP_ENV in {"production", "prod"} and len(SECRET_KEY) < 32:
+    raise RuntimeError("JWT_SECRET_KEY must be set to a secure value of at least 32 characters in production")
+if not SECRET_KEY:
+    SECRET_KEY = "talentlens_super_secret_key_development_only_1234567890"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 hours
 

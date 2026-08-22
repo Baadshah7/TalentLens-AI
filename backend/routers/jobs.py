@@ -7,7 +7,7 @@ from typing import List
 from database import get_db
 import models
 import schemas
-from dependencies import get_current_user, get_current_admin
+from dependencies import get_current_user, get_current_admin, ensure_job_access
 from utils import log_action
 from ethical import audit_codebase_compliance
 
@@ -90,7 +90,10 @@ def list_jobs(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    return db.query(models.Job).all()
+    query = db.query(models.Job)
+    if current_user.Role != "Admin":
+        query = query.filter(models.Job.Created_By == current_user.User_ID)
+    return query.all()
 
 @router.get("/{job_id}", response_model=schemas.JobResponse)
 def get_job(
@@ -101,6 +104,7 @@ def get_job(
     job = db.query(models.Job).filter(models.Job.Job_ID == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job description not found")
+    ensure_job_access(job, current_user)
     return job
 
 @router.put("/{job_id}", response_model=schemas.JobResponse)
@@ -113,6 +117,7 @@ def update_job(
     job = db.query(models.Job).filter(models.Job.Job_ID == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job description not found")
+    ensure_job_access(job, current_user)
     
     job.Job_Title = job_data.Job_Title
     job.Department = job_data.Department
@@ -168,6 +173,7 @@ def delete_job(
     job = db.query(models.Job).filter(models.Job.Job_ID == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job description not found")
+    ensure_job_access(job, current_user)
 
     job_title = job.Job_Title
     db.delete(job)

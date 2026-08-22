@@ -15,13 +15,20 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS for local development
+app_env = os.environ.get("APP_ENV", "development").lower()
+configured_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "")
+if app_env in {"production", "prod"} and not configured_origins.strip():
+    raise RuntimeError("CORS_ALLOWED_ORIGINS must be configured in production")
+if not configured_origins:
+    configured_origins = "http://localhost:5173,http://127.0.0.1:5173"
+allowed_origins = [origin.strip() for origin in configured_origins.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify the actual frontend domains
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Mount Routers

@@ -23,7 +23,8 @@ def register(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
     new_user = models.User(
         Name=user_data.Name,
         Email=user_data.Email,
-        Role=user_data.Role,
+        # Public registration never grants administrative privileges.
+        Role="Recruiter",
         PasswordHash=hashed_pwd
     )
     db.add(new_user)
