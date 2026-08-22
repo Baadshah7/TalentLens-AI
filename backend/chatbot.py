@@ -79,4 +79,23 @@ def coach_feedback(sample_answer: str, question: str) -> Dict:
         "Mention technologies/tools used when relevant"
     ]
 
-    return {"feedback": feedback, "suggestions": suggestions}
+    answer_lower = sample_answer.lower()
+    star_hints = {
+        "situation": ["when", "context", "background", "team", "project"],
+        "task": ["responsible", "goal", "needed to", "task", "objective"],
+        "action": ["i ", "led", "built", "created", "decided", "implemented"],
+        "result": ["result", "increased", "reduced", "improved", "learned", "%", "success"]
+    }
+    star_analysis = {
+        part: {
+            "present": any(hint in answer_lower for hint in hints),
+            "evidence": next((hint for hint in hints if hint in answer_lower), None)
+        }
+        for part, hints in star_hints.items()
+    }
+    return {
+        "feedback": feedback,
+        "suggestions": suggestions,
+        "star_analysis": star_analysis,
+        "star_score": sum(item["present"] for item in star_analysis.values())
+    }

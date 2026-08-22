@@ -16,16 +16,12 @@ const starParts = [
   { key: 'result', label: 'Result', hints: ['result', 'increased', 'reduced', 'improved', 'learned', '%', 'success'] }
 ];
 
-const readHistory = () => {
-  try { return JSON.parse(localStorage.getItem('talentlens_coach_history') || '[]'); } catch { return []; }
-};
-
 const CandidateCoach = () => {
   const [mode, setMode] = useState('practice');
   const [question, setQuestion] = useState(starterQuestions[0]);
   const [sampleAnswer, setSampleAnswer] = useState('');
   const [feedback, setFeedback] = useState(null);
-  const [history, setHistory] = useState(readHistory);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [simulationIndex, setSimulationIndex] = useState(0);
@@ -38,8 +34,27 @@ const CandidateCoach = () => {
   const simulationQuestions = starterQuestions.slice(0, 3);
 
   useEffect(() => {
-    localStorage.setItem('talentlens_coach_history', JSON.stringify(history.slice(0, 12)));
-  }, [history]);
+    const loadHistory = async () => {
+      try {
+        const res = await axios.get('/chatbot/coach/sessions');
+        setHistory(res.data.map((item) => ({
+          id: item.Session_ID,
+          question: item.Question,
+          answer: item.Sample_Answer,
+          score: item.Star_Score,
+          result: {
+            feedback: item.Feedback || [],
+            suggestions: item.Suggestions || [],
+            star_analysis: item.Star_Analysis || {},
+            star_score: item.Star_Score
+          }
+        })));
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadHistory();
+  }, []);
 
   const submit = async () => {
     if (!question.trim() || !sampleAnswer.trim()) {
@@ -49,10 +64,15 @@ const CandidateCoach = () => {
     setError('');
     setLoading(true);
     try {
-      const res = await axios.post('/chatbot/generate/coach', { question: question.trim(), sample_answer: sampleAnswer.trim() });
-      const result = { ...res.data, feedback: res.data.feedback || [], suggestions: res.data.suggestions || [] };
+      const res = await axios.post('/chatbot/coach/sessions', { question: question.trim(), sample_answer: sampleAnswer.trim() });
+      const result = {
+        feedback: res.data.Feedback || [],
+        suggestions: res.data.Suggestions || [],
+        star_analysis: res.data.Star_Analysis || {},
+        star_score: res.data.Star_Score
+      };
       setFeedback(result);
-      setHistory((items) => [{ id: Date.now(), question, answer: sampleAnswer, score: starScore, createdAt: new Date().toISOString(), result }, ...items]);
+      setHistory((items) => [{ id: res.data.Session_ID, question, answer: sampleAnswer, score: res.data.Star_Score, result }, ...items]);
     } catch (err) {
       console.error(err);
       setError('Feedback could not be loaded. Check the API connection and try again.');

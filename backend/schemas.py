@@ -32,6 +32,25 @@ class TokenData(BaseModel):
     user_id: Optional[int] = None
     role: Optional[str] = None
 
+
+class CoachSessionCreate(BaseModel):
+    question: str = Field(..., min_length=1, max_length=1000)
+    sample_answer: str = Field(..., min_length=1, max_length=10000)
+
+
+class CoachSessionResponse(BaseModel):
+    Session_ID: int
+    Question: str
+    Sample_Answer: str
+    Feedback: List[str]
+    Suggestions: List[str]
+    Star_Analysis: Dict[str, Any]
+    Star_Score: int
+    Created_At: datetime
+
+    class Config:
+        from_attributes = True
+
 # Job Skill Weights schemas
 class JobSkillWeightBase(BaseModel):
     Category: str

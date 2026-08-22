@@ -17,6 +17,7 @@ class User(Base):
     audit_logs = relationship("AuditLog", back_populates="user")
     recruiter_decisions = relationship("RecruiterDecision", back_populates="recruiter")
     interviews = relationship("Interview", back_populates="interviewer")
+    coach_sessions = relationship("CoachSession", back_populates="user", cascade="all, delete-orphan")
 
 class Job(Base):
     __tablename__ = "jobs"
@@ -218,6 +219,22 @@ class Interview(Base):
     candidate = relationship("Candidate", back_populates="interviews")
     job = relationship("Job", back_populates="interviews")
     interviewer = relationship("User", back_populates="interviews")
+
+
+class CoachSession(Base):
+    __tablename__ = "coach_sessions"
+
+    Session_ID = Column(Integer, primary_key=True, index=True)
+    User_ID = Column(Integer, ForeignKey("users.User_ID", ondelete="CASCADE"), nullable=False, index=True)
+    Question = Column(String, nullable=False)
+    Sample_Answer = Column(String, nullable=False)
+    Feedback = Column(JSON, default=list)
+    Suggestions = Column(JSON, default=list)
+    Star_Analysis = Column(JSON, nullable=False)
+    Star_Score = Column(Integer, default=0)
+    Created_At = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="coach_sessions")
 
 class EmbeddingCache(Base):
     __tablename__ = "embedding_cache"
