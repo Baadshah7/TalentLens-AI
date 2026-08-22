@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Briefcase, MapPin, Building, Calendar, Plus, Edit2, Trash2, X, Info, Sparkles, Scale, AlertCircle, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
+import { Briefcase, MapPin, Building, Calendar, Plus, Edit2, Trash2, X, Info, Sparkles, Scale, AlertCircle, ArrowUpRight, ArrowDownRight, Minus, RefreshCw } from 'lucide-react';
 
 const DEFAULT_WEIGHTS = {
   required_skills: 35,
@@ -612,7 +612,7 @@ const Jobs = () => {
               <div className="space-y-0.5">
                 <h3 className="text-md font-bold text-slate-100 flex items-center space-x-2">
                   <Scale className="h-5 w-5 text-indigo-400" />
-                  <span>What-If Analysis Dashboard</span>
+                  <span>What-if analysis</span>
                 </h3>
                 <p className="text-[10px] text-slate-400">
                   Simulate ranking and score fluctuations for: <span className="text-indigo-300 font-semibold">{whatIfJob.Job_Title}</span>
@@ -669,7 +669,7 @@ const Jobs = () => {
 
               {/* Weight sliders */}
               <div className="space-y-3">
-                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Weight Simulation Sliders</h4>
+                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Scoring weights</h4>
                 
                 <div className="grid grid-cols-2 gap-4 bg-slate-950/40 p-4 rounded-xl border border-slate-900">
                   {Object.keys(DEFAULT_WEIGHTS).map((cat) => (

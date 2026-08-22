@@ -404,7 +404,7 @@ const UploadPage = () => {
       <div className="space-y-1">
         <h2 className="text-xl font-bold text-slate-100 flex items-center space-x-2">
           <Upload className="h-5 w-5 text-indigo-400" />
-          <span>Resume Ingestion & Screening</span>
+          <span>Resume Screening</span>
         </h2>
         <p className="text-xs text-slate-400">
           Upload resumes and calculate match scores dynamically based on job parameters.
@@ -498,7 +498,7 @@ const UploadPage = () => {
               className="hidden"
             />
             <Upload className="h-8 w-8 text-indigo-400 mb-3" />
-            <p className="text-xs font-semibold text-slate-200">Drag & Drop resumes here</p>
+            <p className="text-xs font-semibold text-slate-200">Drag and drop resumes here</p>
             <p className="text-[10px] text-slate-500 mt-1">or click to browse local files</p>
             <span className="text-[9px] text-indigo-500/80 mt-4 uppercase tracking-widest font-semibold">PDF, DOCX, TXT (Max 10MB)</span>
           </div>
@@ -507,7 +507,7 @@ const UploadPage = () => {
           {uploadQueue.length > 0 && (
             <div className="glass-panel border border-slate-800/80 rounded-2xl p-6 space-y-4">
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-                <h4 className="text-xs font-semibold text-slate-300">File Ingestion Queue</h4>
+                <h4 className="text-xs font-semibold text-slate-300">Upload queue</h4>
                 <button
                   onClick={uploadQueuedFiles}
                   disabled={uploading || !uploadQueue.some(i => i.status === 'queued')}
@@ -715,7 +715,7 @@ const UploadPage = () => {
 
                   {/* Decision select */}
                   <div className="space-y-2">
-                    <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Workflow Decision</label>
+                    <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Recruiter decision</label>
                     <select
                       value={decisionStatusFilter}
                       onChange={(e) => {
@@ -858,7 +858,7 @@ const UploadPage = () => {
               <Scale className="h-3.5 w-3.5 text-indigo-400" />
               <span>{selectedCandidates.length} Selected</span>
             </div>
-            <div className="text-slate-400 text-[10px] md:mt-0.5">Compare or override decision</div>
+            <div className="text-slate-400 text-[10px] md:mt-0.5">Compare candidates or update the decision</div>
           </div>
           
           <div className="flex flex-wrap items-center gap-2 border-t md:border-t-0 md:border-l border-slate-800 pt-3 md:pt-0 md:pl-3 justify-end w-full md:w-auto">
@@ -926,7 +926,7 @@ const UploadPage = () => {
                 <textarea
                   value={bulkReason}
                   onChange={(e) => setBulkReason(e.target.value)}
-                  placeholder="Explain why you are overriding the AI recomendation score metrics..."
+                  placeholder="Explain why you are overriding the AI recommendation..."
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-brand-500 rounded-xl text-slate-100 outline-none text-xs min-h-[90px]"
                   required={isBulkConflict}
                 />
@@ -945,7 +945,7 @@ const UploadPage = () => {
                   disabled={submittingBulk}
                   className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-slate-100 rounded-xl font-semibold transition disabled:opacity-50"
                 >
-                  {submittingBulk ? 'Saving Batch...' : 'Confirm Overrides'}
+                  {submittingBulk ? 'Saving decisions...' : 'Confirm decisions'}
                 </button>
               </div>
             </form>

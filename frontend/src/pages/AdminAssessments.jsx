@@ -42,11 +42,11 @@ const AdminAssessments = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-xl font-bold text-white">Admin - Create Assessment</h2>
+      <h2 className="text-xl font-bold text-white">Create Assessment</h2>
       <div className="mt-4 space-y-4">
         <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Test Title" className="w-full p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-200" />
         <div className="flex items-center space-x-2">
-          <label className="text-slate-300">Duration (sec)</label>
+          <label className="text-slate-300">Duration (minutes)</label>
           <input type="number" value={duration} onChange={e=>setDuration(Number(e.target.value))} className="w-32 p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-200" />
         </div>
 
@@ -64,7 +64,7 @@ const AdminAssessments = () => {
               {q.Options.map((opt,oi)=> (
                 <div key={oi}>
                   <input value={opt} onChange={e=>updateOption(qi,oi,e.target.value)} placeholder={`Option ${oi+1}`} className="w-full p-2 rounded bg-slate-900 border border-slate-800 text-slate-200" />
-                  <div className="text-xs text-slate-400">Set as correct:
+                  <div className="text-xs text-slate-400">Correct answer:
                     <input type="radio" name={`correct-${qi}`} checked={q.Correct_Index===oi} onChange={()=>updateQuestion(qi,'Correct_Index',oi)} className="ml-2" />
                   </div>
                 </div>

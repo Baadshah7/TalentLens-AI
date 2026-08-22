@@ -8,6 +8,30 @@ from dependencies import get_current_user
 router = APIRouter(prefix="/assessments", tags=["assessments"])
 
 
+def _authorize_candidate_results(candidate_id: int, db: Session, current_user: models.User) -> models.Candidate:
+    candidate = db.query(models.Candidate).filter(models.Candidate.Candidate_ID == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    if current_user.Role == "Admin":
+        return candidate
+
+    job = db.query(models.Job).filter(models.Job.Job_ID == candidate.Job_ID).first()
+    recruiter_owns_job = (
+        current_user.Role == "Recruiter"
+        and job is not None
+        and job.Created_By == current_user.User_ID
+    )
+    candidate_owns_record = (
+        current_user.Role == "Candidate"
+        and bool(candidate.Email)
+        and candidate.Email.lower() == current_user.Email.lower()
+    )
+    if not recruiter_owns_job and not candidate_owns_record:
+        raise HTTPException(status_code=403, detail="Not authorized to view these assessment results")
+    return candidate
+
+
 @router.post('/tests/', response_model=schemas.TestResponse)
 def create_test(payload: schemas.TestCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     # only recruiters/admins can create tests
@@ -117,15 +141,7 @@ def get_test_results(test_id: int, db: Session = Depends(get_db), current_user: 
 
 @router.get('/results/candidate/{candidate_id}')
 def get_candidate_results(candidate_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    # Candidates can view their own results; recruiters/admins can view any
-    if current_user.Role == 'Candidate' and getattr(current_user, 'User_ID', None) is not None:
-        # map user to candidate if emails match or use provided mapping
-        # For now allow candidate role to fetch their own records only if ids match
-        # This requires candidate User_ID mapping; keep simple allow if same id
-        pass
-    # allow recruiters/admins
-    if current_user.Role not in ('Recruiter', 'Admin') and current_user.Role != 'Candidate':
-        raise HTTPException(status_code=403, detail='Not authorized')
+    _authorize_candidate_results(candidate_id, db, current_user)
 
     results = db.query(models.AssessmentResult).filter(models.AssessmentResult.Candidate_ID == candidate_id).all()
     out = []

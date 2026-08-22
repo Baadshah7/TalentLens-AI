@@ -149,8 +149,8 @@ const Dashboard = () => {
       {/* Title */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-white">TalentLens MIS Dashboard</h2>
-          <p className="text-sm text-slate-400 mt-1">Management Information System offering aggregate hiring funnel reports & DSS insights.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-white">TalentLens Hiring Dashboard</h2>
+          <p className="text-sm text-slate-400 mt-1">A clear view of your hiring funnel and recruitment insights.</p>
         </div>
         <div className="text-xs bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-slate-400 flex items-center space-x-2">
           <span className="h-2 w-2 bg-emerald-400 rounded-full animate-pulse"></span>
@@ -262,12 +262,12 @@ const Dashboard = () => {
                     <span className="text-[9px] text-slate-500 font-bold block uppercase tracking-wider mt-0.5">Job Posting #{idx + 1}</span>
                   </div>
                   <span className="text-xs font-bold bg-indigo-950/60 border border-indigo-900 text-indigo-300 px-2.5 py-1 rounded-lg">
-                    {job.value} cands
+                    {job.value} candidates
                   </span>
                 </div>
               ))}
               {(!analytics?.job_distribution || analytics.job_distribution.length === 0) && (
-                <div className="text-center py-12 text-xs text-slate-500 italic">No job postings seeded.</div>
+                <div className="text-center py-12 text-xs text-slate-500 italic">No job postings yet.</div>
               )}
             </div>
           </div>
@@ -300,9 +300,9 @@ const Dashboard = () => {
           </div>
 
           <div className="p-4 bg-slate-950/60 border border-slate-900 rounded-xl mt-6">
-            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-1">MIS Funnel Definition</span>
+            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-1">How the funnel is calculated</span>
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              Provides real-time aggregate charts of candidates' conversion steps (TPS input logs aggregated into MIS reports).
+              This chart summarizes candidate progress through the hiring process.
             </p>
           </div>
         </div>
@@ -327,7 +327,7 @@ const Dashboard = () => {
               </div>
             ))}
             {(!analytics?.most_in_demand_skills || analytics.most_in_demand_skills.length === 0) && (
-              <div className="col-span-2 text-center py-6 text-xs text-slate-500 italic">No skills cataloged yet.</div>
+              <div className="col-span-2 text-center py-6 text-xs text-slate-500 italic">No skills added yet.</div>
             )}
           </div>
         </div>

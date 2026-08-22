@@ -212,7 +212,7 @@ const CandidateCompare = () => {
                   return (
                     <td key={cand.Candidate_ID} className="p-4 border-l border-slate-800/60 align-top">
                       {strengths.length === 0 && !evidence.required_skills ? (
-                        <span className="text-slate-500 italic">None logged</span>
+                        <span className="text-slate-500 italic">None identified</span>
                       ) : (
                         <ul className="space-y-1 list-disc pl-3 text-slate-300">
                           {strengths.map((str, idx) => (
@@ -236,7 +236,7 @@ const CandidateCompare = () => {
                   return (
                     <td key={cand.Candidate_ID} className="p-4 border-l border-slate-800/60 align-top">
                       {gaps.length === 0 ? (
-                        <span className="text-slate-500 italic">None logged</span>
+                        <span className="text-slate-500 italic">None identified</span>
                       ) : (
                         <ul className="space-y-1 list-disc pl-3 text-rose-300">
                           {gaps.map((gap, idx) => (

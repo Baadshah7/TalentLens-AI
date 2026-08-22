@@ -77,7 +77,7 @@ const Assessments = () => {
   return (
     <div className="p-6">
       <h2 className="text-xl font-bold text-white">Assessments</h2>
-      {!test && <p className="text-slate-400 mt-3">No test loaded. Admins can create tests via API.</p>}
+      {!test && <p className="text-slate-400 mt-3">No assessment is available right now. Please check back later.</p>}
       {test && (
         <div className="mt-4 bg-slate-900 border border-slate-800 p-4 rounded-2xl">
           <div className="flex items-center justify-between">

@@ -139,7 +139,7 @@ const Interviews = () => {
       setAskedQuestions(res.data.questions || []);
     } catch (err) {
       console.error(err);
-      alert('Failed to generate smart questions.');
+      alert('Could not generate interview questions.');
     }
   };
 
@@ -393,7 +393,7 @@ const Interviews = () => {
                 </div>
               ))}
               {pastInterviews.length === 0 && (
-                <div className="col-span-2 text-center py-6 text-xs text-slate-500 italic">No past sessions history.</div>
+                <div className="col-span-2 text-center py-6 text-xs text-slate-500 italic">No past sessions.</div>
               )}
             </div>
           </div>

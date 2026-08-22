@@ -435,7 +435,7 @@ const CandidateDetail = () => {
           <div className="glass-panel border border-slate-800/80 rounded-2xl p-6 space-y-4">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
               <CheckCircle2 className="h-4 w-4 text-brand-400" />
-              <span>Hiring Workflow Overrides & Reviews</span>
+                <span>Recruiter Decision</span>
             </h4>
             <p className="text-[10px] text-slate-400 leading-relaxed">
               Verify qualifications and register your recruitment decision. Overriding AI match recommendations will prompt a mandatory justification audit.
@@ -740,7 +740,7 @@ const CandidateDetail = () => {
             <div className="space-y-1">
               <h3 className="text-md font-bold text-slate-100 flex items-center space-x-2">
                 <Eye className="h-5 w-5 text-indigo-400" />
-                <span>Disclose Candidate Identity</span>
+                <span>Reveal Candidate Details</span>
               </h3>
               <p className="text-[11px] text-slate-400">
                 You are about to reveal this candidate's real name and contact details. This action will be logged in the permanent compliance audit trail.
@@ -772,7 +772,7 @@ const CandidateDetail = () => {
                   disabled={revealing}
                   className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-slate-100 rounded-xl text-xs font-semibold transition disabled:opacity-50"
                 >
-                  {revealing ? 'Disclosing...' : 'Confirm Reveal'}
+                  {revealing ? 'Revealing...' : 'Reveal details'}
                 </button>
               </div>
             </form>
@@ -801,7 +801,7 @@ const CandidateDetail = () => {
               <p className="text-[11px] text-slate-400">
                 {isDecisionConflict 
                   ? `Your choice to '${selectedDecision}' this candidate conflicts with the AI recommendation of '${scoreInfo.Explanation?.recommendation || 'Low Match'}'. A mandatory justification reason is required for compliance.` 
-                  : `Please register a decision to '${selectedDecision}' Candidate '${candidate.Name}' in the workflow logs.`}
+                  : `Please record a decision to '${selectedDecision}' for '${candidate.Name}'.`}
               </p>
             </div>
             
