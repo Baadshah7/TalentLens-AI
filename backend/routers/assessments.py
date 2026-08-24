@@ -508,7 +508,8 @@ def get_sub_level_questions(sub_level_id: int, db: Session = Depends(get_db), cu
             raise HTTPException(status_code=403, detail="This level is locked. Complete the prerequisite levels to unlock it.")
             
     questions = db.query(models.AssessmentQuestionNew).filter(
-        models.AssessmentQuestionNew.Sub_Level_ID == sub_level_id
+        models.AssessmentQuestionNew.Sub_Level_ID == sub_level_id,
+        models.AssessmentQuestionNew.Is_Published == True
     ).all()
     
     # Shuffle options and question order for candidates to prevent simple memorization on retries
@@ -808,21 +809,22 @@ def list_candidate_attempts(
 @router.post('/admin/generate-questions', response_model=schemas.QuestionNewAdminList)
 async def generate_assessment_questions(
     sub_level_id: int,
+    auto_publish: bool = False,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_admin)
 ):
-    sub_level = db.query(models.AssessmentSubLevel).filter(
+    sl_val = db.query(models.AssessmentSubLevel).filter(
         models.AssessmentSubLevel.Sub_Level_ID == sub_level_id
     ).first()
-    if not sub_level:
+    if not sl_val:
         raise HTTPException(status_code=404, detail="SubLevel not found")
         
-    track = sub_level.track
+    track = sl_val.track
     domain = track.domain if track else None
     
     domain_name = domain.Name if domain else "General"
     difficulty = track.Name if track else "Beginner"
-    level_num = sub_level.Level_Number
+    level_num = sl_val.Level_Number
     
     system_prompt = (
         "You are an expert technical interviewer. You must generate exactly 25 multiple-choice questions (MCQs) for the "
@@ -846,11 +848,12 @@ async def generate_assessment_questions(
     user_prompt = f"Generate exactly 25 MCQs for {domain_name} ({difficulty} Level {level_num})."
     
     api_key = os.environ.get("ANTHROPIC_API_KEY")
+    final_list = []
+    
     if not api_key:
         print("ANTHROPIC_API_KEY environment variable not set. Generating mock questions...")
-        mock_questions = []
         for i in range(1, 26):
-            mock_questions.append({
+            final_list.append({
                 "Question_Text": f"Mock Question {i}: What is the primary characteristic of {domain_name} at the {difficulty} level?",
                 "Options": [
                     f"Option A - Foundational concept for {domain_name}",
@@ -861,68 +864,107 @@ async def generate_assessment_questions(
                 "Correct_Option_Index": random.randint(0, 3),
                 "Explanation": f"This is a mock explanation for Question {i} because ANTHROPIC_API_KEY is not set."
             })
-        return {"Questions": mock_questions}
-        
-    try:
-        async with httpx.AsyncClient() as client:
-            headers = {
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            }
-            payload = {
-                "model": "claude-3-5-sonnet-20241022",
-                "max_tokens": 4000,
-                "messages": [
-                    {"role": "user", "content": f"{system_prompt}\n\n{user_prompt}"}
-                ]
-            }
-            
-            response = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers=headers,
-                json=payload,
-                timeout=60.0
+    else:
+        try:
+            async with httpx.AsyncClient() as client:
+                headers = {
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json"
+                }
+                payload = {
+                    "model": "claude-3-5-sonnet-20241022",
+                    "max_tokens": 4000,
+                    "messages": [
+                        {"role": "user", "content": f"{system_prompt}\n\n{user_prompt}"}
+                    ]
+                }
+                
+                response = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers=headers,
+                    json=payload,
+                    timeout=60.0
+                )
+                
+                if response.status_code != 200:
+                    print(f"Claude API Error: {response.text}")
+                    raise HTTPException(status_code=502, detail="Failed to generate questions via Claude API")
+                    
+                res_json = response.json()
+                content_text = res_json["content"][0]["text"].strip()
+                
+                if content_text.startswith("```"):
+                    lines = content_text.split("\n")
+                    if lines[0].startswith("```json") or lines[0].startswith("```"):
+                        lines = lines[1:]
+                    if lines[-1].startswith("```"):
+                        lines = lines[:-1]
+                    content_text = "\n".join(lines).strip()
+                    
+                data = json.loads(content_text)
+                questions_list = data.get("questions", [])
+                
+                if len(questions_list) < 25:
+                    raise ValueError(f"Returned only {len(questions_list)} questions instead of 25")
+                    
+                for q in questions_list[:25]:
+                    final_list.append({
+                        "Question_Text": q["question_text"],
+                        "Options": q["options"],
+                        "Correct_Option_Index": q["correct_option_index"],
+                        "Explanation": q.get("explanation", "")
+                    })
+        except Exception as e:
+            print(f"Failed to generate questions: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Question generation failed: {str(e)}. Please retry or verify your Claude API key."
             )
             
-            if response.status_code != 200:
-                print(f"Claude API Error: {response.text}")
-                raise HTTPException(status_code=502, detail="Failed to generate questions via Claude API")
-                
-            res_json = response.json()
-            content_text = res_json["content"][0]["text"].strip()
-            
-            if content_text.startswith("```"):
-                lines = content_text.split("\n")
-                if lines[0].startswith("```json") or lines[0].startswith("```"):
-                    lines = lines[1:]
-                if lines[-1].startswith("```"):
-                    lines = lines[:-1]
-                content_text = "\n".join(lines).strip()
-                
-            data = json.loads(content_text)
-            questions_list = data.get("questions", [])
-            
-            if len(questions_list) < 25:
-                raise ValueError(f"Returned only {len(questions_list)} questions instead of 25")
-                
-            final_list = []
-            for q in questions_list[:25]:
-                final_list.append({
-                    "Question_Text": q["question_text"],
-                    "Options": q["options"],
-                    "Correct_Option_Index": q["correct_option_index"],
-                    "Explanation": q.get("explanation", "")
-                })
-                
-            return {"Questions": final_list}
-            
+    # Auto-publish or Draft database persistence
+    try:
+        if auto_publish:
+            # Delete previous draft & published questions
+            db.query(models.AssessmentQuestionNew).filter(
+                models.AssessmentQuestionNew.Sub_Level_ID == sub_level_id
+            ).delete()
+            for q in final_list:
+                new_q = models.AssessmentQuestionNew(
+                    Sub_Level_ID=sub_level_id,
+                    Domain_ID=domain.Domain_ID if domain else 1,
+                    Question_Text=q["Question_Text"],
+                    Options=q["Options"],
+                    Correct_Option_Index=q["Correct_Option_Index"],
+                    Explanation=q["Explanation"],
+                    Difficulty_Tag=track.Name if track else "Beginner",
+                    Is_Published=True
+                )
+                db.add(new_q)
+        else:
+            # Delete draft questions only
+            db.query(models.AssessmentQuestionNew).filter(
+                models.AssessmentQuestionNew.Sub_Level_ID == sub_level_id,
+                models.AssessmentQuestionNew.Is_Published == False
+            ).delete()
+            for q in final_list:
+                new_q = models.AssessmentQuestionNew(
+                    Sub_Level_ID=sub_level_id,
+                    Domain_ID=domain.Domain_ID if domain else 1,
+                    Question_Text=q["Question_Text"],
+                    Options=q["Options"],
+                    Correct_Option_Index=q["Correct_Option_Index"],
+                    Explanation=q["Explanation"],
+                    Difficulty_Tag=track.Name if track else "Beginner",
+                    Is_Published=False
+                )
+                db.add(new_q)
+        db.commit()
     except Exception as e:
-        print(f"Failed to generate questions: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Question generation failed: {str(e)}. Please retry or verify your Claude API key."
-        )
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database commit failed: {str(e)}")
+
+    return {"Questions": final_list}
 
 
 @router.post('/admin/publish-questions')
@@ -947,6 +989,7 @@ def publish_assessment_questions(
         raise HTTPException(status_code=400, detail="A level must contain exactly 25 questions to be published")
         
     try:
+        # Delete previous draft & published questions
         db.query(models.AssessmentQuestionNew).filter(
             models.AssessmentQuestionNew.Sub_Level_ID == sub_level_id
         ).delete()
@@ -959,7 +1002,8 @@ def publish_assessment_questions(
                 Options=q.Options,
                 Correct_Option_Index=q.Correct_Option_Index,
                 Explanation=q.Explanation,
-                Difficulty_Tag=track.Name
+                Difficulty_Tag=track.Name,
+                Is_Published=True
             )
             db.add(new_q)
             
@@ -978,9 +1022,17 @@ def get_admin_sub_level_questions(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_admin)
 ):
+    # Retrieve draft questions if available, otherwise live published questions
     questions = db.query(models.AssessmentQuestionNew).filter(
-        models.AssessmentQuestionNew.Sub_Level_ID == sub_level_id
+        models.AssessmentQuestionNew.Sub_Level_ID == sub_level_id,
+        models.AssessmentQuestionNew.Is_Published == False
     ).all()
+    
+    if not questions:
+        questions = db.query(models.AssessmentQuestionNew).filter(
+            models.AssessmentQuestionNew.Sub_Level_ID == sub_level_id,
+            models.AssessmentQuestionNew.Is_Published == True
+        ).all()
     
     formatted = []
     for q in questions:
@@ -993,6 +1045,36 @@ def get_admin_sub_level_questions(
         })
         
     return {"Questions": formatted}
+
+
+@router.get('/admin/sub-levels-status')
+def get_sub_levels_status(db: Session = Depends(get_db), current_user = Depends(get_current_admin)):
+    domains = db.query(models.AssessmentDomain).all()
+    out = []
+    for d in domains:
+        for t in d.tracks:
+            for sl in t.sub_levels:
+                pub_count = db.query(models.AssessmentQuestionNew).filter(
+                    models.AssessmentQuestionNew.Sub_Level_ID == sl.Sub_Level_ID,
+                    models.AssessmentQuestionNew.Is_Published == True
+                ).count()
+                
+                draft_count = db.query(models.AssessmentQuestionNew).filter(
+                    models.AssessmentQuestionNew.Sub_Level_ID == sl.Sub_Level_ID,
+                    models.AssessmentQuestionNew.Is_Published == False
+                ).count()
+                
+                out.append({
+                    "Sub_Level_ID": sl.Sub_Level_ID,
+                    "Domain_ID": d.Domain_ID,
+                    "Domain_Name": d.Name,
+                    "Track_Name": t.Name,
+                    "Level_Number": sl.Level_Number,
+                    "Level_Name": sl.Name,
+                    "Question_Count": pub_count,
+                    "Draft_Count": draft_count
+                })
+    return out
 
 
 

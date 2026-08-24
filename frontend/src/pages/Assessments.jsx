@@ -3,8 +3,8 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { 
   Brain, Code, Shield, Smartphone, Database, Sparkles, Scale,
-  Lock, CheckCircle2, ChevronLeft, ArrowRight, Play, RefreshCw, 
-  HelpCircle, Timer, Award, Flame, ClipboardList, Check, X, ChevronDown, CheckSquare
+  Lock, CheckCircle2, ChevronLeft, ChevronRight, ArrowRight, Play, RefreshCw, 
+  HelpCircle, Timer, Award, Flame, ClipboardList, Check, X, XCircle, ChevronDown, CheckSquare
 } from 'lucide-react';
 
 const Assessments = () => {
@@ -53,6 +53,66 @@ const Assessments = () => {
       case 'scale': return <Scale className={`${sizeClass} text-rose-400`} />;
       default: return <HelpCircle className={`${sizeClass} text-slate-400`} />;
     }
+  };
+
+  // Prevent accidental navigation off an active test attempt
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (activeAttempt && !quizResult) {
+        e.preventDefault();
+        e.returnValue = "Are you sure you want to exit? Your attempt progress will be lost.";
+        return e.returnValue;
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [activeAttempt, quizResult]);
+
+  const renderBreadcrumbs = () => {
+    return (
+      <div className="flex items-center space-x-2 text-[11px] text-slate-500 mb-6 font-bold select-none border-b border-slate-900 pb-3">
+        <span 
+          className="hover:text-slate-300 cursor-pointer transition duration-150"
+          onClick={() => {
+            if (!activeAttempt || window.confirm("Are you sure you want to exit the active assessment? Your current attempt progress will be lost.")) {
+              setActiveDomain(null);
+              setActiveSubLevel(null);
+              setActiveAttempt(null);
+              setQuizResult(null);
+            }
+          }}
+        >
+          Domains
+        </span>
+        {activeDomain && (
+          <>
+            <ChevronRight className="h-3 w-3 text-slate-700" />
+            <span 
+              className={`transition duration-150 ${activeSubLevel ? 'hover:text-slate-300 cursor-pointer' : 'text-indigo-400 font-extrabold'}`}
+              onClick={() => {
+                if (activeSubLevel) {
+                  if (!activeAttempt || window.confirm("Are you sure you want to exit the active assessment? Your current attempt progress will be lost.")) {
+                    setActiveSubLevel(null);
+                    setActiveAttempt(null);
+                    setQuizResult(null);
+                  }
+                }
+              }}
+            >
+              {activeDomain.Name}
+            </span>
+          </>
+        )}
+        {activeSubLevel && (
+          <>
+            <ChevronRight className="h-3 w-3 text-slate-700" />
+            <span className="text-indigo-400 font-extrabold">
+              Level {activeSubLevel.Level_Number}
+            </span>
+          </>
+        )}
+      </div>
+    );
   };
 
   // Load domains & summary on entry
@@ -239,6 +299,7 @@ const Assessments = () => {
   if (!activeDomain) {
     return (
       <div className="space-y-8 animate-in fade-in duration-300">
+        {renderBreadcrumbs()}
         
         {/* Progress Stats Summary Banner */}
         {progressSummary && (
@@ -346,6 +407,7 @@ const Assessments = () => {
   if (activeDomain && !activeSubLevel) {
     return (
       <div className="space-y-8 animate-in fade-in duration-300 max-w-xl mx-auto">
+        {renderBreadcrumbs()}
         
         {/* Header back button */}
         <div className="flex items-center justify-between border-b border-slate-900 pb-4">
@@ -473,6 +535,7 @@ const Assessments = () => {
     
     return (
       <div className="space-y-6 animate-in fade-in duration-300 max-w-4xl mx-auto">
+        {renderBreadcrumbs()}
         
         {/* Header toolbar */}
         <div className="glass-panel border border-slate-900 rounded-2xl p-4 flex flex-col md:flex-row justify-between items-center bg-slate-900/40 backdrop-blur-md gap-3 shadow-md">
@@ -675,6 +738,7 @@ const Assessments = () => {
     
     return (
       <div className="space-y-8 animate-in fade-in duration-300 max-w-3xl mx-auto relative">
+        {renderBreadcrumbs()}
         
         {/* CSS Particle Confetti */}
         {showConfetti && (

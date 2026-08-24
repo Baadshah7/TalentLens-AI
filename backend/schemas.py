@@ -18,6 +18,7 @@ class UserResponse(BaseModel):
     Name: str
     Email: str
     Role: str
+    Candidate_ID: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -510,5 +511,12 @@ class ProgressSummaryResponse(BaseModel):
     xp: int
     streak: int
     achievements: List[str] = []
+
+
+class ProfileUpdate(BaseModel):
+    Name: str
+    Phone: Optional[str] = None
+    Location: Optional[str] = None
+
 
 

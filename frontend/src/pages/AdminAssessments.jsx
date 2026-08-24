@@ -2,19 +2,20 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   ShieldCheck, RefreshCw, AlertCircle, Edit, Save, Plus, Trash2, 
-  Sparkles, CheckCircle2, ChevronRight, HelpCircle, FileJson, ArrowRightLeft
+  Sparkles, CheckCircle2, ChevronRight, ChevronDown, HelpCircle, FileJson, ArrowRightLeft, Settings, CheckSquare
 } from 'lucide-react';
 
 const AdminAssessments = () => {
+  // Single-Level Editor States
   const [domains, setDomains] = useState([]);
   const [selectedDomainId, setSelectedDomainId] = useState('');
   const [tracks, setTracks] = useState([]);
   const [selectedTrackId, setSelectedTrackId] = useState('');
   const [subLevels, setSubLevels] = useState([]);
   const [selectedSubLevelId, setSelectedSubLevelId] = useState('');
-  
   const [questions, setQuestions] = useState([]);
   
+  // Loading states
   const [domainsLoading, setDomainsLoading] = useState(true);
   const [tracksLoading, setTracksLoading] = useState(false);
   const [questionsLoading, setQuestionsLoading] = useState(false);
@@ -24,7 +25,27 @@ const AdminAssessments = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Fetch initial active domains
+  // Batch AI Generator States
+  const [subLevelsStatus, setSubLevelsStatus] = useState([]);
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [batchGenerating, setBatchGenerating] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, text: '' });
+  const [autoPublish, setAutoPublish] = useState(false);
+  const [showBatchConsole, setShowBatchConsole] = useState(false);
+
+  // Fetch initial active domains & sub-levels status mapping
+  const fetchStatus = async () => {
+    try {
+      setStatusLoading(true);
+      const res = await axios.get('/assessments/admin/sub-levels-status');
+      setSubLevelsStatus(res.data || []);
+    } catch (err) {
+      console.error('Failed to load status catalog:', err);
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
   useEffect(() => {
     const fetchDomains = async () => {
       try {
@@ -42,6 +63,7 @@ const AdminAssessments = () => {
       }
     };
     fetchDomains();
+    fetchStatus();
   }, []);
 
   // Fetch tracks and sub-levels when domain changes
@@ -93,7 +115,7 @@ const AdminAssessments = () => {
     }
   };
 
-  // Fetch current questions when sub-level is selected
+  // Fetch current questions when sub-level is selected (Drafts checked first!)
   useEffect(() => {
     if (!selectedSubLevelId) return;
     const fetchQuestions = async () => {
@@ -113,7 +135,7 @@ const AdminAssessments = () => {
     fetchQuestions();
   }, [selectedSubLevelId]);
 
-  // Trigger Claude AI Question Generation
+  // Trigger individual level AI Question Generation
   const handleAiGenerate = async () => {
     if (!selectedSubLevelId) return;
     setGenerating(true);
@@ -121,14 +143,76 @@ const AdminAssessments = () => {
     setSuccess('');
     
     try {
-      const res = await axios.post(`/assessments/admin/generate-questions?sub_level_id=${selectedSubLevelId}`);
+      const res = await axios.post(`/assessments/admin/generate-questions?sub_level_id=${selectedSubLevelId}&auto_publish=false`);
       setQuestions(res.data.Questions || []);
-      setSuccess('Successfully generated 25 questions via Claude AI! Please review and modify them below before clicking Publish.');
+      setSuccess('Successfully generated 25 questions as DRAFT! Please review/edit below and click Publish Live to deploy.');
+      fetchStatus();
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.detail || 'Failed to generate questions. Verify your Claude API token in the environment.');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  // Sequential rate-controlled batch generation loop with retries
+  const handleBatchGenerate = async () => {
+    const missing = subLevelsStatus.filter(sl => sl.Question_Count < 25 && sl.Draft_Count < 25);
+    if (missing.length === 0) {
+      alert("All levels currently have live questions or draft reviews populated.");
+      return;
+    }
+
+    if (!window.confirm(`Initiate sequential AI generation for all ${missing.length} empty levels? This will run rate-controlled requests.`)) {
+      return;
+    }
+
+    setBatchGenerating(true);
+    setBatchProgress({ current: 0, total: missing.length, text: 'Preparing generator pipelines...' });
+
+    for (let i = 0; i < missing.length; i++) {
+      const sl = missing[i];
+      setBatchProgress(prev => ({
+        ...prev,
+        current: i + 1,
+        text: `Processing: ${sl.Domain_Name} (${sl.Track_Name} Level ${sl.Level_Number})...`
+      }));
+
+      let attempts = 0;
+      let success = false;
+      while (attempts < 3 && !success) {
+        try {
+          attempts++;
+          await axios.post(`/assessments/admin/generate-questions?sub_level_id=${sl.Sub_Level_ID}&auto_publish=${autoPublish}`);
+          success = true;
+        } catch (err) {
+          console.error(`Attempt ${attempts} failed for Level ${sl.Sub_Level_ID}:`, err);
+          if (attempts < 3) {
+            setBatchProgress(prev => ({ ...prev, text: `Retrying level (attempt ${attempts + 1}/3) in 3s...` }));
+            await new Promise(r => setTimeout(r, 3000));
+          }
+        }
+      }
+
+      if (!success) {
+        console.error(`Failed to generate Level ${sl.Sub_Level_ID} after 3 attempts.`);
+      }
+
+      // 2-second rate-limiting throttle between consecutive levels
+      if (i < missing.length - 1) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+
+    setBatchGenerating(false);
+    setBatchProgress({ current: 0, total: 0, text: 'Batch AI questions generation successfully completed!' });
+    fetchStatus();
+    
+    // Refresh editor view
+    if (selectedSubLevelId) {
+      const current = selectedSubLevelId;
+      setSelectedSubLevelId('');
+      setTimeout(() => setSelectedSubLevelId(current), 50);
     }
   };
 
@@ -156,7 +240,7 @@ const AdminAssessments = () => {
     setQuestions(prev => prev.map((q, idx) => idx === qIdx ? { ...q, Explanation: explanation } : q));
   };
 
-  // Submit and Publish Questions to SQLite Pool
+  // Submit and Publish Questions to SQLite Pool (Sets Is_Published=True)
   const handlePublish = async () => {
     if (!selectedSubLevelId) return;
     if (questions.length !== 25) {
@@ -172,6 +256,7 @@ const AdminAssessments = () => {
       const payload = { Questions: questions };
       const res = await axios.post(`/assessments/admin/publish-questions?sub_level_id=${selectedSubLevelId}`, payload);
       setSuccess(res.data.message || 'Assessment questions successfully published live to candidates.');
+      fetchStatus();
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.detail || 'Failed to publish questions.');
@@ -184,289 +269,340 @@ const AdminAssessments = () => {
   const activeTrack = tracks.find(t => t.Track_ID === Number(selectedTrackId));
   const activeSubLevel = subLevels.find(s => s.Sub_Level_ID === Number(selectedSubLevelId));
 
+  const missingLevels = subLevelsStatus.filter(sl => sl.Question_Count < 25 && sl.Draft_Count < 25);
+
   return (
-    <div className="p-6 md:p-8 space-y-8 max-w-6xl mx-auto">
+    <div className="space-y-8 max-w-6xl mx-auto pb-12">
       
       {/* Title */}
       <div className="flex justify-between items-center border-b border-slate-900 pb-5">
         <div className="space-y-1">
-          <h2 className="text-3xl font-extrabold tracking-tight text-white flex items-center space-x-3 bg-gradient-to-r from-slate-100 to-slate-400 bg-clip-text text-transparent">
-            <ShieldCheck className="h-7 w-7 text-indigo-400" />
+          <h2 className="text-2xl font-black tracking-tight text-white flex items-center space-x-3">
+            <ShieldCheck className="h-6.5 w-6.5 text-indigo-400" />
             <span>Manage Candidate Assessments</span>
           </h2>
-          <p className="text-sm text-slate-450">
-            Author domains, generate difficulty-aware MCQs with Claude AI, review contents, and publish levels live to candidates.
+          <p className="text-xs text-slate-500 font-medium">
+            Author domains, generate difficulty-aware MCQs with Claude AI, review drafts, and publish levels live to candidates.
           </p>
         </div>
       </div>
 
-      {/* Selector Filters Grid */}
-      <div className="glass-panel border border-slate-800/80 rounded-2xl p-6 bg-slate-900/40 backdrop-blur-md grid grid-cols-1 md:grid-cols-3 gap-6 shadow-lg">
-        
-        {/* Domain Selection */}
-        <div className="space-y-2">
-          <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">1. Select Domain Category</label>
-          {domainsLoading ? (
-            <div className="h-11 bg-slate-950/40 rounded-xl border border-slate-900 flex items-center justify-center text-xs text-slate-500 space-x-2">
-              <RefreshCw className="h-3 w-3 animate-spin text-slate-400" />
-              <span>Loading domains...</span>
-            </div>
-          ) : (
-            <select
-              value={selectedDomainId}
-              onChange={(e) => setSelectedDomainId(e.target.value)}
-              className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-brand-500 rounded-xl text-slate-100 outline-none text-xs font-bold transition shadow-inner"
-            >
-              {domains.map(d => (
-                <option key={d.Domain_ID} value={d.Domain_ID}>{d.Name}</option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {/* Track Selection */}
-        <div className="space-y-2">
-          <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">2. Select Difficulty Track</label>
-          {tracksLoading ? (
-            <div className="h-11 bg-slate-950/40 rounded-xl border border-slate-900 flex items-center justify-center text-xs text-slate-500 space-x-2">
-              <RefreshCw className="h-3 w-3 animate-spin text-slate-400" />
-              <span>Loading tracks...</span>
-            </div>
-          ) : (
-            <select
-              value={selectedTrackId}
-              onChange={handleTrackChange}
-              disabled={tracks.length === 0}
-              className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-brand-500 rounded-xl text-slate-100 outline-none text-xs font-bold transition shadow-inner disabled:opacity-50"
-            >
-              {tracks.map(t => (
-                <option key={t.Track_ID} value={t.Track_ID}>{t.Name}</option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {/* Level Selection */}
-        <div className="space-y-2">
-          <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">3. Select Sub-Level Node</label>
-          <select
-            value={selectedSubLevelId}
-            onChange={(e) => setSelectedSubLevelId(e.target.value)}
-            disabled={subLevels.length === 0}
-            className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-brand-500 rounded-xl text-slate-100 outline-none text-xs font-bold transition shadow-inner disabled:opacity-50"
-          >
-            {subLevels.map(s => (
-              <option key={s.Sub_Level_ID} value={s.Sub_Level_ID}>{s.Name} (25 Questions)</option>
-            ))}
-          </select>
-        </div>
-
-      </div>
-
-      {/* Control Banner actions */}
-      {selectedSubLevelId && (
-        <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-950/40 border border-slate-900 p-5 rounded-2xl gap-4 shadow-inner">
-          <div className="text-center sm:text-left">
-            <h4 className="text-sm font-bold text-slate-200 flex items-center justify-center sm:justify-start">
-              <span>Selected Target:</span>
-              <span className="ml-2 px-2.5 py-0.5 text-[10px] font-black rounded-lg bg-indigo-950 border border-indigo-900/60 text-indigo-300">
-                {activeDomain?.Name} ➔ {activeTrack?.Name} ➔ {activeSubLevel?.Name}
-              </span>
-            </h4>
-            <p className="text-[11px] text-slate-500 mt-1 font-medium">
-              Current live questions in pool: <strong className="text-slate-400">{questionsLoading ? 'Checking...' : questions.length} / 25</strong>
-            </p>
-          </div>
-
-          <div className="flex items-center space-x-3 w-full sm:w-auto">
-            <button
-              onClick={handleAiGenerate}
-              disabled={generating || questionsLoading || submitting}
-              className="flex-1 sm:flex-none px-4.5 py-2.5 bg-gradient-to-r from-violet-650 to-indigo-650 hover:from-violet-550 hover:to-indigo-550 disabled:opacity-50 text-xs font-extrabold text-white rounded-xl shadow-md flex items-center justify-center space-x-2 transition duration-200 active:scale-95"
-            >
-              {generating ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  <span>Generating via Claude...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 text-violet-300" />
-                  <span>Generate via Claude AI</span>
-                </>
-              )}
-            </button>
-            {questions.length === 25 && (
-              <button
-                onClick={handlePublish}
-                disabled={submitting || generating || questionsLoading}
-                className="flex-1 sm:flex-none px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-550 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-xs font-extrabold text-white rounded-xl shadow-md flex items-center justify-center space-x-2 transition duration-200 active:scale-95"
-              >
-                {submitting ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span>Publishing pool...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4" />
-                    <span>Publish Assessment Set</span>
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Notifications */}
       {error && (
-        <div className="flex items-start space-x-3 p-4 rounded-2xl bg-rose-950/20 border border-rose-900/30 text-rose-300 text-xs animate-in fade-in duration-200 shadow-inner">
-          <AlertCircle className="h-5 w-5 flex-shrink-0 text-rose-400" />
-          <span className="font-bold leading-relaxed">{error}</span>
+        <div className="p-4 bg-red-955 border border-red-900/30 text-red-300 rounded-xl text-xs flex items-center space-x-2">
+          <AlertCircle className="h-4.5 w-4.5 text-red-400 flex-shrink-0" />
+          <span>{error}</span>
         </div>
       )}
 
       {success && (
-        <div className="flex items-start space-x-3 p-4 rounded-2xl bg-emerald-950/20 border border-emerald-900/30 text-emerald-300 text-xs animate-in fade-in duration-200 shadow-inner">
-          <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-emerald-400" />
-          <span className="font-bold leading-relaxed">{success}</span>
+        <div className="p-4 bg-emerald-955 border border-emerald-900/30 text-emerald-300 rounded-xl text-xs flex items-center space-x-2">
+          <CheckCircle2 className="h-4.5 w-4.5 text-emerald-450 flex-shrink-0" />
+          <span>{success}</span>
         </div>
       )}
 
-      {/* Loader for Table previews */}
-      {questionsLoading ? (
-        <div className="glass-panel border border-slate-900 rounded-2xl p-12 text-center text-slate-500">
-          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-3 text-slate-600" />
-          <p className="text-xs font-bold">Querying assessment question pool details...</p>
-        </div>
-      ) : questions.length === 0 ? (
-        <div className="glass-panel border border-dashed border-slate-800 rounded-2xl p-12 text-center text-slate-500 max-w-lg mx-auto flex flex-col items-center space-y-4">
-          <div className="p-3 bg-slate-950 rounded-full border border-slate-905 text-slate-600 shadow-inner">
-            <HelpCircle className="h-7 w-7" />
+      {/* ==========================================
+          BATCH AI GENERATOR CONSOLE
+          ========================================== */}
+      <div className="glass-panel border border-slate-900 rounded-2xl p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2.5">
+            <div className="p-2 bg-indigo-950/40 border border-indigo-900/30 text-indigo-400 rounded-xl shadow-inner">
+              <Settings className="h-4.5 w-4.5" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-sm text-slate-200">AI Batch Question Generator</h3>
+              <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                Bulk generate structured levels using rate-controlled queues ({missingLevels.length} missing).
+              </p>
+            </div>
           </div>
-          <div>
-            <h4 className="text-sm font-bold text-slate-300">No Assessment Questions Published</h4>
-            <p className="text-xs text-slate-500 mt-1 max-w-xs leading-relaxed">
-              This sub-level has no MCQs. Click **Generate via Claude AI** above to draft 25 structured questions instantly.
-            </p>
-          </div>
-        </div>
-      ) : (
-        /* Questions Review Panel List */
-        <div className="space-y-6 animate-in fade-in duration-300">
-          <div className="flex justify-between items-center px-2">
-            <h3 className="font-extrabold text-slate-200 text-sm flex items-center space-x-2">
-              <FileJson className="h-4.5 w-4.5 text-indigo-400" />
-              <span>Questions Review Editor ({questions.length} total)</span>
-            </h3>
-            <span className="text-[10px] text-slate-500 font-bold bg-slate-950 px-2 py-0.5 border border-slate-900 rounded-md">
-              JSON Format Validated
-            </span>
-          </div>
-
-          <div className="space-y-6 max-h-[800px] overflow-y-auto pr-2">
-            {questions.map((q, qIdx) => (
-              <div key={qIdx} className="glass-panel border border-slate-850 rounded-2xl p-5 md:p-6 bg-slate-900/30 hover:border-slate-800 transition duration-200 shadow-sm relative">
-                
-                {/* Question Row Header */}
-                <div className="flex justify-between items-center border-b border-slate-850 pb-3 mb-4">
-                  <span className="text-xs font-black text-indigo-400 bg-indigo-950/60 border border-indigo-900/50 px-2.5 py-0.5 rounded-lg">
-                    Question {qIdx + 1}
-                  </span>
-                  <div className="flex items-center space-x-2.5">
-                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Correct Option Index:</label>
-                    <select
-                      value={q.Correct_Option_Index}
-                      onChange={(e) => handleUpdateCorrectIndex(qIdx, Number(e.target.value))}
-                      className="px-2 py-1 bg-slate-950 border border-slate-800 focus:border-brand-500 rounded-lg text-slate-100 outline-none text-xs font-bold"
-                    >
-                      <option value={0}>Option 1 (A)</option>
-                      <option value={1}>Option 2 (B)</option>
-                      <option value={2}>Option 3 (C)</option>
-                      <option value={3}>Option 4 (D)</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Edit Fields */}
-                <div className="space-y-4 text-xs font-medium">
-                  {/* Question Text */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">Question Prompt</label>
-                    <textarea
-                      value={q.Question_Text}
-                      onChange={(e) => handleUpdateQuestionText(qIdx, e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl text-slate-150 outline-none text-xs min-h-[60px] shadow-inner font-semibold"
-                      placeholder="Enter MCQ prompt..."
-                    />
-                  </div>
-
-                  {/* Options */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">Answer Choices</label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                      {q.Options.map((opt, oIdx) => (
-                        <div key={oIdx} className="flex items-center space-x-2">
-                          <span className={`text-[10px] font-black h-6 w-6 rounded-lg flex items-center justify-center border flex-shrink-0 ${
-                            q.Correct_Option_Index === oIdx 
-                              ? 'bg-emerald-950/60 border-emerald-500 text-emerald-400' 
-                              : 'bg-slate-950 border-slate-850 text-slate-500'
-                          }`}>
-                            {String.fromCharCode(65 + oIdx)}
-                          </span>
-                          <input
-                            type="text"
-                            value={opt}
-                            onChange={(e) => handleUpdateOption(qIdx, oIdx, e.target.value)}
-                            className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl text-slate-300 outline-none text-xs font-semibold shadow-inner"
-                            placeholder={`Option ${oIdx + 1}`}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Explanation */}
-                  <div className="space-y-1.5 pt-2">
-                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">Explanation</label>
-                    <textarea
-                      value={q.Explanation || ''}
-                      onChange={(e) => handleUpdateExplanation(qIdx, e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl text-slate-400 outline-none text-xs min-h-[50px] shadow-inner"
-                      placeholder="Optional explanation shown post-submit..."
-                    />
-                  </div>
-
-                </div>
-
-              </div>
-            ))}
-          </div>
-
-          {/* Bottom Publish Block */}
-          <div className="flex justify-end p-2">
+          <div className="flex items-center space-x-3">
             <button
-              onClick={handlePublish}
-              disabled={submitting || generating || questionsLoading}
-              className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-550 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-xs font-black uppercase tracking-wider text-white rounded-xl shadow-lg flex items-center justify-center space-x-2 transition duration-200 active:scale-98"
+              onClick={() => setShowBatchConsole(!showBatchConsole)}
+              className="px-3.5 py-1.5 border border-slate-800 hover:border-slate-700 bg-slate-900/60 text-slate-400 hover:text-slate-200 rounded-xl text-xs font-bold transition flex items-center space-x-1.5"
             >
-              {submitting ? (
+              <span>{showBatchConsole ? 'Hide Status Sheet' : 'Inspect Status Sheet'}</span>
+              <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${showBatchConsole ? 'rotate-180' : ''}`} />
+            </button>
+            <button
+              disabled={batchGenerating || missingLevels.length === 0}
+              onClick={handleBatchGenerate}
+              className="px-4 py-1.5 bg-gradient-to-r from-brand-600 to-indigo-650 hover:from-brand-500 hover:to-indigo-550 text-white rounded-xl text-xs font-extrabold transition shadow-md flex items-center space-x-1.5 disabled:opacity-50"
+            >
+              {batchGenerating ? (
                 <>
-                  <RefreshCw className="h-4.5 w-4.5 animate-spin" />
-                  <span>Publishing Changes...</span>
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  <span>Generating Batch...</span>
                 </>
               ) : (
                 <>
-                  <Save className="h-4.5 w-4.5" />
-                  <span>Publish reviewed questions set live</span>
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Generate All Missing</span>
                 </>
               )}
             </button>
           </div>
-
         </div>
-      )}
+
+        {/* Batch configuration option */}
+        <div className="flex items-center space-x-2 pt-2 border-t border-slate-900">
+          <input
+            type="checkbox"
+            id="autoPublishCheck"
+            checked={autoPublish}
+            onChange={(e) => setAutoPublish(e.target.checked)}
+            className="rounded border-slate-850 bg-slate-950 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+          />
+          <label htmlFor="autoPublishCheck" className="text-[10px] font-bold text-slate-400 cursor-pointer select-none">
+            Auto-Publish generated questions (skip review, deploy live immediately)
+          </label>
+        </div>
+
+        {/* Progress monitor */}
+        {batchProgress.text && (
+          <div className="p-4 bg-slate-950 border border-slate-850 rounded-xl space-y-2">
+            <div className="flex justify-between text-[10px] text-slate-450 font-bold">
+              <span>{batchProgress.text}</span>
+              {batchProgress.total > 0 && (
+                <span>Level {batchProgress.current} of {batchProgress.total}</span>
+              )}
+            </div>
+            {batchProgress.total > 0 && (
+              <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden shadow-inner">
+                <div 
+                  className="h-full bg-gradient-to-r from-brand-600 to-indigo-500 rounded-full transition-all duration-300"
+                  style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
+                ></div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Status Sheet Accordion */}
+        {showBatchConsole && (
+          <div className="border-t border-slate-900 pt-4 animate-in slide-in-from-top-2 duration-200">
+            {statusLoading ? (
+              <div className="text-center py-6 text-slate-500">
+                <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2 text-slate-650" />
+                <p className="text-[10px] font-bold">Syncing level index...</p>
+              </div>
+            ) : (
+              <div className="max-h-[300px] overflow-y-auto border border-slate-900 rounded-xl bg-slate-955/40">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-900 text-slate-500 font-bold">
+                      <th className="p-3">Domain</th>
+                      <th className="p-3">Track</th>
+                      <th className="p-3">Level</th>
+                      <th className="p-3 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subLevelsStatus.map((sl) => {
+                      const isLive = sl.Question_Count >= 25;
+                      const isDraft = !isLive && sl.Draft_Count >= 25;
+                      
+                      return (
+                        <tr key={sl.Sub_Level_ID} className="border-b border-slate-900/60 last:border-0 hover:bg-slate-900/10">
+                          <td className="p-3 font-semibold text-slate-350">{sl.Domain_Name}</td>
+                          <td className="p-3 text-slate-450">{sl.Track_Name}</td>
+                          <td className="p-3 text-slate-450">Level {sl.Level_Number}</td>
+                          <td className="p-3 text-right">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                              isLive
+                                ? 'bg-emerald-950/20 border-emerald-900/40 text-emerald-400'
+                                : isDraft
+                                  ? 'bg-amber-950/20 border-amber-900/40 text-amber-400'
+                                  : 'bg-red-955 border-red-900/30 text-red-400'
+                            }`}>
+                              {isLive ? 'Live' : isDraft ? 'Draft Review' : 'Empty'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ==========================================
+          SINGLE LEVEL MCQ WRITER / EDITOR
+          ========================================== */}
+      <div className="glass-panel border border-slate-900 rounded-2xl p-5 space-y-6">
+        <h3 className="font-extrabold text-sm text-slate-205 border-b border-slate-900 pb-2">Single Level MCQ Writer & Editor</h3>
+        
+        {/* Selector selectors row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-1">
+            <label className="text-[10px] text-slate-500 uppercase tracking-widest font-black">Assessment Domain</label>
+            {domainsLoading ? (
+              <div className="h-9 w-full bg-slate-950 border border-slate-850 rounded-xl animate-pulse"></div>
+            ) : (
+              <select
+                value={selectedDomainId}
+                onChange={(e) => setSelectedDomainId(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-850 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none transition font-semibold"
+              >
+                {domains.map(d => (
+                  <option key={d.Domain_ID} value={d.Domain_ID}>{d.Name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] text-slate-500 uppercase tracking-widest font-black">Difficulty Track</label>
+            {tracksLoading ? (
+              <div className="h-9 w-full bg-slate-950 border border-slate-850 rounded-xl animate-pulse"></div>
+            ) : (
+              <select
+                value={selectedTrackId}
+                onChange={handleTrackChange}
+                className="w-full bg-slate-950 border border-slate-850 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none transition font-semibold"
+              >
+                {tracks.map(t => (
+                  <option key={t.Track_ID} value={t.Track_ID}>{t.Name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] text-slate-500 uppercase tracking-widest font-black">Sub-Level Number</label>
+            <select
+              value={selectedSubLevelId}
+              onChange={(e) => setSelectedSubLevelId(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-850 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none transition font-semibold"
+            >
+              {subLevels.map(s => (
+                <option key={s.Sub_Level_ID} value={s.Sub_Level_ID}>{s.Name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Generate / Action Buttons */}
+        <div className="flex justify-between items-center bg-slate-950/40 p-4 border border-slate-900 rounded-xl gap-3 flex-wrap">
+          <div className="text-slate-450 font-bold text-xs">
+            {activeDomain && activeTrack && activeSubLevel ? (
+              <span>Target: {activeDomain.Name} &gt; {activeTrack.Name} &gt; {activeSubLevel.Name}</span>
+            ) : (
+              <span>Select targets above</span>
+            )}
+          </div>
+          <div className="flex space-x-3">
+            <button
+              disabled={generating || !selectedSubLevelId}
+              onClick={handleAiGenerate}
+              className="px-4 py-2 border border-indigo-900 bg-indigo-950/20 hover:bg-indigo-950/40 text-indigo-400 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 disabled:opacity-50"
+            >
+              {generating ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  <span>Drafting questions...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  <span>AI Generate Draft</span>
+                </>
+              )}
+            </button>
+            <button
+              disabled={submitting || questions.length === 0}
+              onClick={handlePublish}
+              className="px-4.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-555 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black transition active:scale-95 disabled:opacity-50"
+            >
+              {submitting ? 'Publishing...' : 'Publish Live'}
+            </button>
+          </div>
+        </div>
+
+        {/* Question editor workspace */}
+        <div className="space-y-6 pt-3">
+          <div className="flex justify-between items-center"><h4 className="font-extrabold text-sm text-slate-300">Level MCQ Items ({questions.length}/25)</h4></div>
+          {questionsLoading ? (
+            <div className="text-center py-12 text-slate-500">
+              <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-3 text-slate-650" />
+              <p className="text-xs font-bold">Synchronizing question bank...</p>
+            </div>
+          ) : questions.length === 0 ? (
+            <div className="text-center py-12 border border-slate-900/60 rounded-xl bg-slate-950/20 text-slate-500">
+              <HelpCircle className="h-8 w-8 mx-auto mb-2 text-slate-700" />
+              <p className="text-xs font-semibold">No questions found for this level.</p>
+              <p className="text-[10px] text-slate-555 mt-0.5">Click "AI Generate Draft" or "Generate All Missing" to populate this bank.</p>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {questions.map((q, qIdx) => (
+                <div key={qIdx} className="p-5 bg-slate-950/40 border border-slate-900 rounded-xl space-y-4 shadow-sm animate-in fade-in duration-200">
+                  
+                  {/* Question Text */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] text-slate-500 uppercase tracking-widest font-black">Question {qIdx + 1}</label>
+                      <span className="text-[9px] text-indigo-400 font-bold">Multiple Choice (4 options)</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={q.Question_Text}
+                      onChange={(e) => handleUpdateQuestionText(qIdx, e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-850 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-600 outline-none transition font-medium"
+                    />
+                  </div>
+
+                  {/* Options List */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {q.Options.map((opt, oIdx) => (
+                      <div key={oIdx} className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[9px] text-slate-550 uppercase tracking-wider font-bold">Option {String.fromCharCode(65 + oIdx)}</label>
+                          <label className="flex items-center space-x-1 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`correct-radio-${qIdx}`}
+                              checked={q.Correct_Option_Index === oIdx}
+                              onChange={() => handleUpdateCorrectIndex(qIdx, oIdx)}
+                              className="rounded-full border-slate-800 bg-slate-900 text-indigo-500 focus:ring-indigo-500 h-3 w-3 cursor-pointer"
+                            />
+                            <span className="text-[9px] text-slate-500 font-bold select-none">Correct Option</span>
+                          </label>
+                        </div>
+                        <input
+                          type="text"
+                          value={opt}
+                          onChange={(e) => handleUpdateOption(qIdx, oIdx, e.target.value)}
+                          className={`w-full bg-slate-950 border focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-600 outline-none transition font-medium ${
+                            q.Correct_Option_Index === oIdx ? 'border-indigo-500/40 bg-indigo-950/10' : 'border-slate-850'
+                          }`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Explanation */}
+                  <div className="space-y-1 pt-1">
+                    <label className="text-[9px] text-slate-550 uppercase tracking-wider font-bold block">Explanation</label>
+                    <textarea
+                      value={q.Explanation || ''}
+                      onChange={(e) => handleUpdateExplanation(qIdx, e.target.value)}
+                      placeholder="Add key insights details for candidate review sessions..."
+                      className="w-full bg-slate-950 border border-slate-855 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-600 outline-none transition min-h-[60px]"
+                    />
+                  </div>
+
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+      </div>
 
     </div>
   );

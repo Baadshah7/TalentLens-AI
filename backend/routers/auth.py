@@ -10,6 +10,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=schemas.Token)
 def register(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
+    if user_data.Role == "Admin":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Admin accounts cannot be self-registered"
+        )
+
     # Check if user already exists
     existing_user = db.query(models.User).filter(models.User.Email == user_data.Email).first()
     if existing_user:
@@ -21,20 +27,43 @@ def register(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
     # Hash password and create user
     hashed_pwd = auth.get_password_hash(user_data.Password)
     
-    # Public registration never grants administrative privileges.
-    role = user_data.Role
-    if role == "Admin":
-        role = "Recruiter"
-        
     new_user = models.User(
         Name=user_data.Name,
         Email=user_data.Email,
-        Role=role,
+        Role=user_data.Role,
         PasswordHash=hashed_pwd
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
+    # Identity linking check for Candidates
+    if new_user.Role == "Candidate":
+        from routers.assessments import initialize_candidate_progress
+        import datetime
+        
+        # Check if passively created candidate profiles exist for this email
+        candidates = db.query(models.Candidate).filter(models.Candidate.Email.ilike(new_user.Email)).all()
+        if candidates:
+            for candidate in candidates:
+                candidate.User_ID = new_user.User_ID
+            db.commit()
+            
+            # Sort candidates by upload date descending
+            latest_cand = sorted(candidates, key=lambda c: c.Upload_Date or datetime.datetime.min, reverse=True)[0]
+            initialize_candidate_progress(latest_cand.Candidate_ID, db)
+        else:
+            # Create a fresh Candidate profile linked to this User
+            fresh_cand = models.Candidate(
+                Name=new_user.Name,
+                Email=new_user.Email,
+                User_ID=new_user.User_ID,
+                Job_ID=None
+            )
+            db.add(fresh_cand)
+            db.commit()
+            db.refresh(fresh_cand)
+            initialize_candidate_progress(fresh_cand.Candidate_ID, db)
     
     # Generate token
     token = auth.create_access_token({"sub": new_user.Email, "user_id": new_user.User_ID, "role": new_user.Role})

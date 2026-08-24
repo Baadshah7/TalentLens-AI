@@ -18,6 +18,16 @@ class User(Base):
     recruiter_decisions = relationship("RecruiterDecision", back_populates="recruiter")
     interviews = relationship("Interview", back_populates="interviewer")
     coach_sessions = relationship("CoachSession", back_populates="user", cascade="all, delete-orphan")
+    candidates = relationship("Candidate", back_populates="user")
+
+    @property
+    def Candidate_ID(self):
+        if self.Role == "Candidate" and self.candidates:
+            # Sort candidates by Upload_Date descending to get the most recent primary profile
+            sorted_cands = sorted(self.candidates, key=lambda c: c.Upload_Date or datetime.datetime.min, reverse=True)
+            if sorted_cands:
+                return sorted_cands[0].Candidate_ID
+        return None
 
 class Job(Base):
     __tablename__ = "jobs"
@@ -72,13 +82,15 @@ class Candidate(Base):
     Resume_File_Path = Column(String, nullable=False)
     Upload_Date = Column(DateTime, default=datetime.datetime.utcnow)
     Processing_Status = Column(String, default="Pending") # Pending, Processing, Parsed, Failed
-    Job_ID = Column(Integer, ForeignKey("jobs.Job_ID", ondelete="CASCADE"), nullable=False)
+    Job_ID = Column(Integer, ForeignKey("jobs.Job_ID", ondelete="CASCADE"), nullable=True)
+    User_ID = Column(Integer, ForeignKey("users.User_ID", ondelete="SET NULL"), nullable=True)
 
     # Blind Mode Override State
     Is_Identity_Revealed = Column(Boolean, default=False)
 
     # Relationships
     job = relationship("Job", back_populates="candidates")
+    user = relationship("User", back_populates="candidates")
     skills = relationship("CandidateSkill", back_populates="candidate", cascade="all, delete-orphan")
     experiences = relationship("CandidateExperience", back_populates="candidate", cascade="all, delete-orphan")
     educations = relationship("CandidateEducation", back_populates="candidate", cascade="all, delete-orphan")
@@ -356,6 +368,7 @@ class AssessmentQuestionNew(Base):
     Explanation = Column(String, nullable=True)
     Difficulty_Tag = Column(String, nullable=True)  # Beginner, Intermediate, Advanced
     Created_At = Column(DateTime, default=datetime.datetime.utcnow)
+    Is_Published = Column(Boolean, default=True, nullable=False)
 
     sub_level = relationship("AssessmentSubLevel", back_populates="questions")
     domain = relationship("AssessmentDomain", back_populates="questions")

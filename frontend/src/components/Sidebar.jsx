@@ -1,29 +1,32 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Briefcase, Upload, LogOut, User as UserIcon, ShieldAlert, Calendar, X } from 'lucide-react';
+import { LayoutDashboard, Briefcase, Upload, LogOut, User as UserIcon, ShieldAlert, Award, Sparkles, Calendar, X } from 'lucide-react';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
 
-  const navItems = user?.Role === 'Candidate'
-    ? [
-        { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { to: '/coach', label: 'Practice & Coach', icon: UserIcon },
-        { to: '/assessments', label: 'Assessments', icon: Calendar },
-        { to: '/results', label: 'My Results', icon: Calendar },
-        { to: '/interviews', label: 'Live Interviews', icon: Calendar },
-        { to: '/upload', label: 'My Resumes', icon: Upload },
-      ]
-    : [
-        { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { to: '/jobs', label: 'Jobs', icon: Briefcase },
-        { to: '/upload', label: 'Resume Upload', icon: Upload },
-        { to: '/assessments', label: 'Assessments', icon: Calendar },
-        { to: '/interviews', label: 'Interviews', icon: Calendar },
-        { to: '/coach', label: 'Candidate Coach', icon: UserIcon },
-        { to: '/admin/assessments', label: 'Manage Assessments', icon: Calendar },
-      ];
+  let navItems = [];
+  if (user?.Role === 'Candidate') {
+    navItems = [
+      { to: '/assessments', label: 'Skill Assessments', icon: Award },
+      { to: '/profile', label: 'Profile & Applications', icon: UserIcon },
+      { to: '/coach', label: 'AI Career Coach', icon: Sparkles },
+    ];
+  } else if (user?.Role === 'Admin') {
+    navItems = [
+      { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/admin/assessments', label: 'Manage Assessments', icon: Briefcase },
+    ];
+  } else {
+    // Recruiter role
+    navItems = [
+      { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/jobs', label: 'Jobs', icon: Briefcase },
+      { to: '/upload', label: 'Resume Upload', icon: Upload },
+      { to: '/interviews', label: 'Interviews', icon: Calendar },
+    ];
+  }
 
   const sidebarContent = (
     <div className="flex flex-col h-full w-full">

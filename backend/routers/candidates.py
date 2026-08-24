@@ -859,3 +859,194 @@ def export_candidate_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=screening_report_candidate_{candidate_id}.pdf"}
     )
+
+
+@router.get("/profile/data")
+def get_candidate_profile(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.Role != "Candidate":
+        raise HTTPException(status_code=403, detail="Only candidates can view this profile")
+        
+    cands = db.query(models.Candidate).filter(models.Candidate.User_ID == current_user.User_ID).all()
+    
+    if not cands:
+        fresh_cand = models.Candidate(
+            Name=current_user.Name,
+            Email=current_user.Email,
+            User_ID=current_user.User_ID,
+            Job_ID=None,
+            Resume_File_Path=""
+        )
+        db.add(fresh_cand)
+        db.commit()
+        db.refresh(fresh_cand)
+        cands = [fresh_cand]
+        
+    import datetime
+    primary_cand = sorted(cands, key=lambda c: c.Upload_Date or datetime.datetime.min, reverse=True)[0]
+    
+    skills = [{"Skill": s.Skill, "Skill_Level": s.Skill_Level, "Evidence_Text": s.Evidence_Text} for s in primary_cand.skills]
+    experiences = [{"Experience_ID": e.Experience_ID, "Company": e.Company, "Role": e.Role, "Duration_Months": e.Duration_Months, "Description": e.Description, "Is_Relevant": e.Is_Relevant} for e in primary_cand.experiences]
+    educations = [{"Degree": ed.Degree, "Institution": ed.Institution, "Graduation_Year": ed.Graduation_Year} for ed in primary_cand.educations]
+    projects = [{"Project_Name": p.Project_Name, "Technologies": p.Technologies, "Description": p.Description} for p in primary_cand.projects]
+    certifications = [{"Certification_Name": c.Certification_Name, "Issuing_Org": c.Issuing_Org} for c in primary_cand.certifications]
+    
+    apps = []
+    for c in cands:
+        if c.Job_ID is not None:
+            scheduled_interview = db.query(models.Interview).filter(
+                models.Interview.Candidate_ID == c.Candidate_ID,
+                models.Interview.Status == "Scheduled"
+            ).first()
+            
+            status_str = "Under Review"
+            if scheduled_interview:
+                status_str = "Interview Scheduled"
+            elif c.recruiter_decision:
+                decision_map = {
+                    "Shortlist": "Shortlisted",
+                    "Reject": "Rejected",
+                    "Interview": "Interview Scheduled",
+                    "Select": "Shortlisted",
+                    "Hold": "Under Review"
+                }
+                status_str = decision_map.get(c.recruiter_decision.Decision, "Under Review")
+            elif c.Processing_Status == "Parsed":
+                status_str = "Applied"
+                
+            apps.append({
+                "Candidate_ID": c.Candidate_ID,
+                "Job_ID": c.Job_ID,
+                "Job_Title": c.job.Job_Title if c.job else "General Position",
+                "Department": c.job.Department if c.job else "Technology",
+                "Location": c.job.Location if c.job else "Remote",
+                "Application_Date": c.Upload_Date,
+                "Status": status_str
+            })
+            
+    resume_name = ""
+    if primary_cand.Resume_File_Path:
+        raw_name = os.path.basename(primary_cand.Resume_File_Path)
+        if "_" in raw_name:
+            parts = raw_name.split("_", 1)
+            if len(parts[0]) == 32:
+                resume_name = parts[1]
+            else:
+                resume_name = raw_name
+        else:
+            resume_name = raw_name
+            
+    return {
+        "Name": current_user.Name,
+        "Email": current_user.Email,
+        "Phone": primary_cand.Phone,
+        "Location": primary_cand.Location,
+        "Resume_Name": resume_name,
+        "Processing_Status": primary_cand.Processing_Status,
+        "Skills": skills,
+        "Experiences": experiences,
+        "Educations": educations,
+        "Projects": projects,
+        "Certifications": certifications,
+        "Applications": apps
+    }
+
+
+@router.put("/profile/data")
+def update_candidate_profile(body: schemas.ProfileUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.Role != "Candidate":
+        raise HTTPException(status_code=403, detail="Only candidates can update their profile")
+        
+    current_user.Name = body.Name
+    cands = db.query(models.Candidate).filter(models.Candidate.User_ID == current_user.User_ID).all()
+    for c in cands:
+        c.Name = body.Name
+        c.Phone = body.Phone
+        c.Location = body.Location
+        
+    db.commit()
+    return {"message": "Profile updated successfully"}
+
+
+@router.post("/profile/resume")
+def upload_profile_resume(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if current_user.Role != "Candidate":
+        raise HTTPException(status_code=403, detail="Only candidates can upload a resume to their profile")
+        
+    filename = os.path.basename(file.filename or "resume")
+    _, ext = os.path.splitext(filename)
+    ext = ext.lower()
+    
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Invalid file type. Only PDF, DOCX, and TXT are allowed.")
+        
+    upload_dir = os.path.join("uploads", "candidates")
+    os.makedirs(upload_dir, exist_ok=True)
+    stored_filename = f"{uuid.uuid4().hex}_{filename}"
+    file_path = os.path.join(upload_dir, stored_filename)
+    
+    try:
+        size = 0
+        with open(file_path, "wb") as buffer:
+            while chunk := file.file.read(1024 * 1024):
+                size += len(chunk)
+                if size > MAX_FILE_SIZE:
+                    raise HTTPException(status_code=400, detail="File size exceeds maximum limit of 10MB.")
+                buffer.write(chunk)
+                
+        is_valid_header = check_file_signature(file_path, ext)
+        if check_file_corrupted(file_path, ext) or not is_valid_header:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            raise HTTPException(status_code=400, detail="Uploaded file is corrupted or invalid format.")
+            
+        primary_cand = db.query(models.Candidate).filter(
+            models.Candidate.User_ID == current_user.User_ID,
+            models.Candidate.Job_ID == None
+        ).first()
+        
+        if not primary_cand:
+            primary_cand = models.Candidate(
+                Name=current_user.Name,
+                Email=current_user.Email,
+                User_ID=current_user.User_ID,
+                Job_ID=None,
+                Resume_File_Path=file_path,
+                Processing_Status="Pending"
+            )
+            db.add(primary_cand)
+            db.flush()
+        else:
+            primary_cand.Resume_File_Path = file_path
+            primary_cand.Processing_Status = "Pending"
+            
+        processing_id = str(uuid.uuid4())
+        db.add(models.ResumeProcessingTask(
+            Task_ID=processing_id,
+            Candidate_ID=primary_cand.Candidate_ID,
+            Submitted_By=current_user.User_ID,
+            Status="PENDING",
+        ))
+        db.commit()
+        
+        try:
+            process_resume.delay(processing_id)
+        except Exception:
+            print("Celery workers are offline. Running parsing synchronously in fallback mode...")
+            from processing import process_resume_task
+            process_resume_task(processing_id)
+            
+        return {
+            "message": "Resume uploaded successfully and queued for parsing",
+            "processing_id": processing_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise HTTPException(status_code=500, detail=f"Resume upload failed: {str(e)}")
+

@@ -35,6 +35,12 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
         
     if role == "Candidate":
+        # First check if there's a User record matching user_id
+        user = db.query(models.User).filter(models.User.User_ID == user_id).first()
+        if user:
+            return user
+            
+        # Fallback for old OTP candidate tokens where user_id was Candidate_ID
         candidate = db.query(models.Candidate).filter(models.Candidate.Candidate_ID == user_id).first()
         if candidate is None:
             raise credentials_exception
