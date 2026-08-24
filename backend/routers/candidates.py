@@ -139,14 +139,20 @@ def upload_resumes(
                 try:
                     process_resume.delay(processing_id)
                 except Exception:
-                    db.rollback()
-                    candidate.Processing_Status = "Failed"
-                    task = db.query(models.ResumeProcessingTask).filter(models.ResumeProcessingTask.Task_ID == processing_id).first()
-                    if task:
-                        task.Status = "FAILED"
-                        task.Error_Message = "Resume processing could not be queued."
-                    db.commit()
-                    error_details = "Resume processing could not be queued."
+                    print("Celery workers are offline. Running parsing synchronously in fallback mode...")
+                    from processing import process_resume_task
+                    try:
+                        process_resume_task(processing_id)
+                        db.refresh(candidate)
+                    except Exception as parse_err:
+                        print(f"Synchronous fallback parsing failed: {parse_err}")
+                        candidate.Processing_Status = "Failed"
+                        task = db.query(models.ResumeProcessingTask).filter(models.ResumeProcessingTask.Task_ID == processing_id).first()
+                        if task:
+                            task.Status = "FAILED"
+                            task.Error_Message = "Synchronous parsing failed."
+                        db.commit()
+                        error_details = f"Resume processing failed: {str(parse_err)}"
 
             if not is_corrupted:
                 log_action(
