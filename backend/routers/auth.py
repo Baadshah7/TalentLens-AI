@@ -20,11 +20,16 @@ def register(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
     
     # Hash password and create user
     hashed_pwd = auth.get_password_hash(user_data.Password)
+    
+    # Public registration never grants administrative privileges.
+    role = user_data.Role
+    if role == "Admin":
+        role = "Recruiter"
+        
     new_user = models.User(
         Name=user_data.Name,
         Email=user_data.Email,
-        # Public registration never grants administrative privileges.
-        Role="Recruiter",
+        Role=role,
         PasswordHash=hashed_pwd
     )
     db.add(new_user)

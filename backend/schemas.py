@@ -6,7 +6,7 @@ from datetime import datetime
 class UserCreate(BaseModel):
     Name: str = Field(..., min_length=2, max_length=50)
     Email: EmailStr
-    Role: str = Field("Recruiter", pattern="^(Recruiter|Admin)$")
+    Role: str = Field("Recruiter", pattern="^(Recruiter|Admin|Candidate)$")
     Password: str = Field(..., min_length=6)
 
 class UserLogin(BaseModel):

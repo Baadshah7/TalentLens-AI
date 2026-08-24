@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import Login from './pages/Login';
@@ -58,10 +58,30 @@ const AuthLayout = ({ children }) => {
   const { user } = useAuth();
 
   if (user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
-  return <>{children}</>;
+  return children;
+};
+
+const ProtectedRoute = ({ children }) => {
+  const { user, sessionExpired } = useAuth();
+  const location = useLocation();
+
+  if (!user) {
+    if (sessionExpired) {
+      return (
+        <Navigate 
+          to="/login" 
+          state={{ message: 'Session expired, please log in again', from: location }} 
+          replace 
+        />
+      );
+    }
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return <MainLayout>{children}</MainLayout>;
 };
 
 function AppContent() {
@@ -78,81 +98,89 @@ function AppContent() {
       <Route
         path="/"
         element={
-          <MainLayout>
+          <ProtectedRoute>
+            <Navigate to="/dashboard" replace />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
             <Dashboard />
-          </MainLayout>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/jobs"
         element={
-          <MainLayout>
+          <ProtectedRoute>
             <Jobs />
-          </MainLayout>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/upload"
         element={
-          <MainLayout>
+          <ProtectedRoute>
             <UploadPage />
-          </MainLayout>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/candidate/:id"
         element={
-          <MainLayout>
+          <ProtectedRoute>
             <CandidateDetail />
-          </MainLayout>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/compare"
         element={
-          <MainLayout>
+          <ProtectedRoute>
             <CandidateCompare />
-          </MainLayout>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/interviews"
         element={
-          <MainLayout>
+          <ProtectedRoute>
             <Interviews />
-          </MainLayout>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/assessments"
         element={
-          <MainLayout>
+          <ProtectedRoute>
             <Assessments />
-          </MainLayout>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/admin/assessments"
         element={
-          <MainLayout>
+          <ProtectedRoute>
             <AdminAssessments />
-          </MainLayout>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/results"
         element={
-          <MainLayout>
+          <ProtectedRoute>
             <Results />
-          </MainLayout>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/coach"
         element={
-          <MainLayout>
+          <ProtectedRoute>
             <CandidateCoach />
-          </MainLayout>
+          </ProtectedRoute>
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />

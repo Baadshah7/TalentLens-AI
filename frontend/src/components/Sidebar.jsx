@@ -8,7 +8,7 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   const navItems = user?.Role === 'Candidate'
     ? [
-        { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+        { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { to: '/coach', label: 'Practice & Coach', icon: UserIcon },
         { to: '/assessments', label: 'Assessments', icon: Calendar },
         { to: '/results', label: 'My Results', icon: Calendar },
@@ -16,7 +16,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         { to: '/upload', label: 'My Resumes', icon: Upload },
       ]
     : [
-        { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+        { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { to: '/jobs', label: 'Jobs', icon: Briefcase },
         { to: '/upload', label: 'Resume Upload', icon: Upload },
         { to: '/assessments', label: 'Assessments', icon: Calendar },

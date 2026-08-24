@@ -8,21 +8,52 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 // Setup axios defaults
 axios.defaults.baseURL = API_URL;
 
+// Helper to check JWT expiration client-side
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (!payload.exp) return false;
+    const currentTime = Date.now() / 1000;
+    return payload.exp < currentTime;
+  } catch (e) {
+    return true; // invalid format is treated as expired
+  }
+};
+
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token') || '');
+  const [user, setUser] = useState(() => {
+    const storedUser = localStorage.getItem('user');
+    const storedToken = localStorage.getItem('token');
+    if (storedUser && storedToken && !isTokenExpired(storedToken)) {
+      try {
+        return JSON.parse(storedUser);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
   const [loading, setLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   useEffect(() => {
     if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      // Retrieve stored user info
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        try {
-          setUser(JSON.parse(storedUser));
-        } catch (e) {
-          console.error("Error parsing stored user details", e);
+      if (isTokenExpired(token)) {
+        setSessionExpired(true);
+        logout();
+      } else {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          try {
+            setUser(JSON.parse(storedUser));
+          } catch (e) {
+            console.error("Error parsing stored user details", e);
+          }
         }
       }
     } else {
@@ -58,6 +89,7 @@ export const AuthProvider = ({ children }) => {
       
       setToken(access_token);
       setUser(userData);
+      setSessionExpired(false);
       return { success: true };
     } catch (error) {
       return { 
@@ -82,6 +114,7 @@ export const AuthProvider = ({ children }) => {
       
       setToken(access_token);
       setUser(userData);
+      setSessionExpired(false);
       return { success: true };
     } catch (error) {
       return { 
@@ -99,8 +132,23 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
-      {!loading && children}
+    <AuthContext.Provider value={{ user, token, loading, sessionExpired, setSessionExpired, login, register, logout }}>
+      {loading ? (
+        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-100">
+          <div className="h-12 w-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-brand-600 flex items-center justify-center text-white font-bold text-2xl mb-4 animate-pulse shadow-lg glow-accent-violet">
+            TL
+          </div>
+          <div className="flex items-center space-x-2">
+            <svg className="animate-spin h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <span className="text-sm font-medium text-slate-400">Verifying session...</span>
+          </div>
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 };

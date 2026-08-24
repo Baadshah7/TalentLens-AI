@@ -1,20 +1,32 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { KeyRound, Mail, User as UserIcon, ShieldAlert } from 'lucide-react';
 
 const Login = () => {
-  const { login, register } = useAuth();
+  const { login, register, setSessionExpired } = useAuth();
+  const location = useLocation();
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('Recruiter');
   const [error, setError] = useState('');
+  const [infoMessage, setInfoMessage] = useState(location.state?.message || '');
   const [submitting, setSubmitting] = useState(false);
+
+  const handleInputChange = (setter) => (e) => {
+    setter(e.target.value);
+    setError('');
+    setInfoMessage('');
+    setSessionExpired(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setInfoMessage('');
+    setSessionExpired(false);
     setSubmitting(true);
 
     try {
@@ -75,6 +87,13 @@ const Login = () => {
           </div>
         )}
 
+        {infoMessage && !error && (
+          <div className="mb-6 p-4 bg-indigo-950/40 border border-indigo-800/50 rounded-xl text-indigo-300 text-sm flex items-center space-x-2 animate-pulse">
+            <ShieldAlert className="h-5 w-5 flex-shrink-0 text-indigo-400" />
+            <span>{infoMessage}</span>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {isRegister && (
             <div>
@@ -86,7 +105,7 @@ const Login = () => {
                   required
                   placeholder="Full Name"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={handleInputChange(setName)}
                   className="w-full pl-11 pr-4 py-3 bg-slate-900 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-sm text-slate-100 placeholder-slate-500 transition-all outline-none"
                 />
               </div>
@@ -102,7 +121,7 @@ const Login = () => {
                 required
                 placeholder="you@company.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={handleInputChange(setEmail)}
                 className="w-full pl-11 pr-4 py-3 bg-slate-900 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-sm text-slate-100 placeholder-slate-500 transition-all outline-none"
               />
             </div>
@@ -117,7 +136,7 @@ const Login = () => {
                       onClick={() => setRole('Recruiter')}
                       className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
                         role === 'Recruiter'
-                          ? 'bg-brand-600/10 border-brand-500 text-brand-400 font-bold'
+                           ? 'bg-brand-600/10 border-brand-500 text-brand-400 font-bold'
                           : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
                       }`}
                     >
@@ -128,7 +147,7 @@ const Login = () => {
                       onClick={() => setRole('Admin')}
                       className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
                         role === 'Admin'
-                          ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400 font-bold'
+                           ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400 font-bold'
                           : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
                       }`}
                     >
@@ -159,7 +178,7 @@ const Login = () => {
                 minLength="6"
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={handleInputChange(setPassword)}
                 className="w-full pl-11 pr-4 py-3 bg-slate-900 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-sm text-slate-100 placeholder-slate-500 transition-all outline-none"
               />
             </div>
@@ -179,6 +198,8 @@ const Login = () => {
             onClick={() => {
               setIsRegister(!isRegister);
               setError('');
+              setInfoMessage('');
+              setSessionExpired(false);
             }}
             className="text-xs text-brand-400 hover:text-brand-300 font-semibold"
           >
