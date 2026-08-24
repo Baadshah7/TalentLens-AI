@@ -762,6 +762,45 @@ def get_user_progress_summary(db: Session = Depends(get_db), current_user = Depe
     }
 
 
+@router.get('/candidate/{candidate_id}/attempts')
+def list_candidate_attempts(
+    candidate_id: int, 
+    db: Session = Depends(get_db), 
+    current_user = Depends(get_current_user)
+):
+    if current_user.Role == "Candidate" and current_user.Candidate_ID != candidate_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    elif current_user.Role == "Recruiter":
+        cand = db.query(models.Candidate).filter(models.Candidate.Candidate_ID == candidate_id).first()
+        if not cand:
+            raise HTTPException(status_code=404, detail="Candidate not found")
+        job = db.query(models.Job).filter(models.Job.Job_ID == cand.Job_ID).first()
+        if not job or (current_user.Role != "Admin" and job.Created_By != current_user.User_ID):
+            raise HTTPException(status_code=403, detail="Not authorized")
+            
+    attempts = db.query(models.AssessmentAttemptNew).filter(
+        models.AssessmentAttemptNew.Candidate_ID == candidate_id,
+        models.AssessmentAttemptNew.Submitted_At != None
+    ).order_by(models.AssessmentAttemptNew.Submitted_At.desc()).all()
+    
+    out = []
+    for a in attempts:
+        sl = a.sub_level
+        track = sl.track if sl else None
+        dom = track.domain if track else None
+        out.append({
+            "Attempt_ID": a.Attempt_ID,
+            "Domain_Name": dom.Name if dom else "General",
+            "Track_Name": track.Name if track else "Beginner",
+            "Level_Number": sl.Level_Number if sl else 1,
+            "Submitted_At": a.Submitted_At,
+            "Score_Percent": a.Score_Percent,
+            "Is_Passed": a.Is_Passed,
+            "Attempt_Number": a.Attempt_Number
+        })
+    return out
+
+
 # ==========================================
 # Admin Assessment Authoring & Generation
 # ==========================================
@@ -931,6 +970,30 @@ def publish_assessment_questions(
         db.rollback()
         print(f"Failed to publish questions: {e}")
         raise HTTPException(status_code=500, detail=f"Database commit failed: {str(e)}")
+
+
+@router.get('/admin/sub-levels/{sub_level_id}/questions', response_model=schemas.QuestionNewAdminList)
+def get_admin_sub_level_questions(
+    sub_level_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_admin)
+):
+    questions = db.query(models.AssessmentQuestionNew).filter(
+        models.AssessmentQuestionNew.Sub_Level_ID == sub_level_id
+    ).all()
+    
+    formatted = []
+    for q in questions:
+        formatted.append({
+            "Question_ID": q.Question_ID,
+            "Question_Text": q.Question_Text,
+            "Options": q.Options,
+            "Correct_Option_Index": q.Correct_Option_Index,
+            "Explanation": q.Explanation
+        })
+        
+    return {"Questions": formatted}
+
 
 
 # ==========================================
