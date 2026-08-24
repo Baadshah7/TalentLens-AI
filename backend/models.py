@@ -88,6 +88,8 @@ class Candidate(Base):
     recruiter_decision = relationship("RecruiterDecision", back_populates="candidate", uselist=False, cascade="all, delete-orphan")
     interviews = relationship("Interview", back_populates="candidate", cascade="all, delete-orphan")
     processing_tasks = relationship("ResumeProcessingTask", back_populates="candidate", cascade="all, delete-orphan")
+    assessment_attempts = relationship("AssessmentAttemptNew", back_populates="candidate", cascade="all, delete-orphan")
+    progress = relationship("CandidateProgress", back_populates="candidate", cascade="all, delete-orphan")
 
 
 class ResumeProcessingTask(Base):
@@ -298,3 +300,122 @@ class AssessmentResult(Base):
     # relationships
     test = relationship("AssessmentTest")
     candidate = relationship("Candidate")
+
+
+class AssessmentDomain(Base):
+    __tablename__ = "assessment_domains"
+
+    Domain_ID = Column(Integer, primary_key=True, index=True)
+    Name = Column(String, unique=True, index=True, nullable=False)
+    Icon_Slug = Column(String, default="code")
+    Description = Column(String, nullable=True)
+    Is_Active = Column(Boolean, default=True)
+
+    tracks = relationship("AssessmentTrack", back_populates="domain", cascade="all, delete-orphan")
+    questions = relationship("AssessmentQuestionNew", back_populates="domain", cascade="all, delete-orphan")
+
+
+class AssessmentTrack(Base):
+    __tablename__ = "assessment_tracks"
+
+    Track_ID = Column(Integer, primary_key=True, index=True)
+    Domain_ID = Column(Integer, ForeignKey("assessment_domains.Domain_ID", ondelete="CASCADE"), nullable=False)
+    Name = Column(String, nullable=False)  # "Beginner", "Intermediate", "Advanced"
+    Order_Index = Column(Integer, default=0)
+
+    domain = relationship("AssessmentDomain", back_populates="tracks")
+    sub_levels = relationship("AssessmentSubLevel", back_populates="track", cascade="all, delete-orphan")
+
+
+class AssessmentSubLevel(Base):
+    __tablename__ = "assessment_sub_levels"
+
+    Sub_Level_ID = Column(Integer, primary_key=True, index=True)
+    Track_ID = Column(Integer, ForeignKey("assessment_tracks.Track_ID", ondelete="CASCADE"), nullable=False)
+    Level_Number = Column(Integer, nullable=False)  # 1 to 5
+    Name = Column(String, nullable=False)  # e.g., "Level 1"
+    Question_Count = Column(Integer, default=25)
+    Pass_Threshold_Percent = Column(Float, default=70.0)
+    Time_Limit_Minutes = Column(Integer, default=30)
+
+    track = relationship("AssessmentTrack", back_populates="sub_levels")
+    questions = relationship("AssessmentQuestionNew", back_populates="sub_level", cascade="all, delete-orphan")
+    attempts = relationship("AssessmentAttemptNew", back_populates="sub_level", cascade="all, delete-orphan")
+    user_progresses = relationship("CandidateProgress", back_populates="sub_level", cascade="all, delete-orphan")
+
+
+class AssessmentQuestionNew(Base):
+    __tablename__ = "assessment_questions_new"
+
+    Question_ID = Column(Integer, primary_key=True, index=True)
+    Sub_Level_ID = Column(Integer, ForeignKey("assessment_sub_levels.Sub_Level_ID", ondelete="CASCADE"), nullable=False)
+    Domain_ID = Column(Integer, ForeignKey("assessment_domains.Domain_ID", ondelete="CASCADE"), nullable=False)
+    Question_Text = Column(String, nullable=False)
+    Options = Column(JSON, nullable=False)  # JSON array of 4 choices
+    Correct_Option_Index = Column(Integer, nullable=False)  # 0 to 3
+    Explanation = Column(String, nullable=True)
+    Difficulty_Tag = Column(String, nullable=True)  # Beginner, Intermediate, Advanced
+    Created_At = Column(DateTime, default=datetime.datetime.utcnow)
+
+    sub_level = relationship("AssessmentSubLevel", back_populates="questions")
+    domain = relationship("AssessmentDomain", back_populates="questions")
+    answers = relationship("AttemptAnswerNew", back_populates="question", cascade="all, delete-orphan")
+
+
+class AssessmentAttemptNew(Base):
+    __tablename__ = "assessment_attempts_new"
+
+    Attempt_ID = Column(Integer, primary_key=True, index=True)
+    Candidate_ID = Column(Integer, ForeignKey("candidates.Candidate_ID", ondelete="CASCADE"), nullable=False)
+    Sub_Level_ID = Column(Integer, ForeignKey("assessment_sub_levels.Sub_Level_ID", ondelete="CASCADE"), nullable=False)
+    Started_At = Column(DateTime, default=datetime.datetime.utcnow)
+    Submitted_At = Column(DateTime, nullable=True)
+    Score_Percent = Column(Float, nullable=True)
+    Correct_Count = Column(Integer, nullable=True)
+    Incorrect_Count = Column(Integer, nullable=True)
+    Skipped_Count = Column(Integer, nullable=True)
+    Time_Taken_Seconds = Column(Integer, nullable=True)
+    Is_Passed = Column(Boolean, default=False)
+    Attempt_Number = Column(Integer, default=1)
+
+    candidate = relationship("Candidate", back_populates="assessment_attempts")
+    sub_level = relationship("AssessmentSubLevel", back_populates="attempts")
+    answers = relationship("AttemptAnswerNew", back_populates="attempt", cascade="all, delete-orphan")
+
+
+class AttemptAnswerNew(Base):
+    __tablename__ = "attempt_answers_new"
+
+    Answer_ID = Column(Integer, primary_key=True, index=True)
+    Attempt_ID = Column(Integer, ForeignKey("assessment_attempts_new.Attempt_ID", ondelete="CASCADE"), nullable=False)
+    Question_ID = Column(Integer, ForeignKey("assessment_questions_new.Question_ID", ondelete="CASCADE"), nullable=False)
+    Selected_Option_Index = Column(Integer, nullable=True)  # Null if skipped
+    Is_Correct = Column(Boolean, default=False)
+
+    attempt = relationship("AssessmentAttemptNew", back_populates="answers")
+    question = relationship("AssessmentQuestionNew", back_populates="answers")
+
+
+class CandidateProgress(Base):
+    __tablename__ = "candidate_progress"
+
+    Progress_ID = Column(Integer, primary_key=True, index=True)
+    Candidate_ID = Column(Integer, ForeignKey("candidates.Candidate_ID", ondelete="CASCADE"), nullable=False)
+    Sub_Level_ID = Column(Integer, ForeignKey("assessment_sub_levels.Sub_Level_ID", ondelete="CASCADE"), nullable=False)
+    Best_Score_Percent = Column(Float, default=0.0)
+    Is_Unlocked = Column(Boolean, default=False)
+    Is_Completed = Column(Boolean, default=False)
+    Attempts_Count = Column(Integer, default=0)
+    Last_Attempted_At = Column(DateTime, nullable=True)
+
+    candidate = relationship("Candidate", back_populates="progress")
+    sub_level = relationship("AssessmentSubLevel", back_populates="user_progresses")
+
+
+class CandidateOTP(Base):
+    __tablename__ = "candidate_otps"
+
+    OTP_ID = Column(Integer, primary_key=True, index=True)
+    Email = Column(String, unique=True, index=True, nullable=False)
+    OTP_Code = Column(String, nullable=False)
+    Expires_At = Column(DateTime, nullable=False)

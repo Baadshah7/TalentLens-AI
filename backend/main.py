@@ -9,6 +9,15 @@ from routers import assessments
 # Create missing database tables for the configured database.
 models.Base.metadata.create_all(bind=engine)
 
+# Auto-seed multi-level assessment tables
+from database import SessionLocal
+from routers.assessments import seed_assessments_db
+db_seed = SessionLocal()
+try:
+    seed_assessments_db(db_seed)
+finally:
+    db_seed.close()
+
 app = FastAPI(
     title="TalentLens AI - Backend Services",
     description="Backend services for AI-powered resume screening and recruitment support",

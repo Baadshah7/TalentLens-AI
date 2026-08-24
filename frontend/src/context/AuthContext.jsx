@@ -131,8 +131,51 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const candidateLoginRequest = async (email) => {
+    try {
+      const response = await axios.post('/assessments/candidate/login/request', { Email: email });
+      return { success: true, message: response.data.message };
+    } catch (error) {
+      return { 
+        success: false, 
+        message: error.response?.data?.detail || 'Candidate email address not found in screening directory.' 
+      };
+    }
+  };
+
+  const candidateLoginVerify = async (email, otpCode) => {
+    try {
+      const response = await axios.post('/assessments/candidate/login/verify', { Email: email, OTP_Code: otpCode });
+      const { access_token, Candidate_ID, Email: cEmail, Name, Role } = response.data;
+      
+      const candidateUser = {
+        User_ID: Candidate_ID,
+        Candidate_ID: Candidate_ID,
+        Email: cEmail,
+        Name: Name,
+        Role: Role
+      };
+      
+      localStorage.setItem('token', access_token);
+      localStorage.setItem('user', JSON.stringify(candidateUser));
+      
+      setToken(access_token);
+      setUser(candidateUser);
+      setSessionExpired(false);
+      return { success: true };
+    } catch (error) {
+      return { 
+        success: false, 
+        message: error.response?.data?.detail || 'Verification code failed. Please check and retry.' 
+      };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, sessionExpired, setSessionExpired, login, register, logout }}>
+    <AuthContext.Provider value={{ 
+      user, token, loading, sessionExpired, setSessionExpired, 
+      login, register, logout, candidateLoginRequest, candidateLoginVerify 
+    }}>
       {loading ? (
         <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-100">
           <div className="h-12 w-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-brand-600 flex items-center justify-center text-white font-bold text-2xl mb-4 animate-pulse shadow-lg glow-accent-violet">

@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import Login from './pages/Login';
+import CandidateLogin from './pages/CandidateLogin';
 import Dashboard from './pages/Dashboard';
 import Jobs from './pages/Jobs';
 import UploadPage from './pages/Upload';
@@ -16,13 +17,45 @@ import Results from './pages/Results';
 
 // Auth Route Wrapper
 const MainLayout = ({ children }) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
+  // Clean candidate portal layout split
+  if (user.Role === 'Candidate') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col relative">
+        <header className="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md p-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
+          <div className="flex items-center space-x-3">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-brand-605 flex items-center justify-center text-white font-black text-base shadow-md">
+              TL
+            </div>
+            <div>
+              <span className="font-extrabold text-slate-100 text-sm tracking-tight block">TalentLens Candidate Portal</span>
+              <span className="text-[10px] text-slate-500 font-semibold block">Welcome, {user.Name}</span>
+            </div>
+          </div>
+          <button
+            onClick={logout}
+            className="px-3.5 py-1.5 border border-slate-800 hover:border-slate-700 bg-slate-900/60 hover:bg-slate-900 text-slate-400 hover:text-slate-200 rounded-xl text-xs font-bold transition shadow-sm"
+          >
+            Sign Out
+          </button>
+        </header>
+        <main className="flex-1 overflow-y-auto relative p-6 md:p-8">
+          <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-indigo-650/3 rounded-full blur-[100px] pointer-events-none"></div>
+          <div className="relative z-10 max-w-5xl mx-auto">
+            {children}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Standard recruiter/admin layout with sidebar
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-100 relative">
       {/* Mobile Top Navbar */}
@@ -58,27 +91,41 @@ const AuthLayout = ({ children }) => {
   const { user } = useAuth();
 
   if (user) {
+    if (user.Role === 'Candidate') {
+      return <Navigate to="/assessments" replace />;
+    }
     return <Navigate to="/dashboard" replace />;
   }
 
   return children;
 };
 
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, sessionExpired } = useAuth();
   const location = useLocation();
 
+  const isCandidateRoute = location.pathname.startsWith('/assessments') || location.pathname.startsWith('/results');
+
   if (!user) {
+    const redirectPath = isCandidateRoute ? '/candidate/login' : '/login';
     if (sessionExpired) {
       return (
         <Navigate 
-          to="/login" 
+          to={redirectPath}
           state={{ message: 'Session expired, please log in again', from: location }} 
           replace 
         />
       );
     }
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to={redirectPath} state={{ from: location }} replace />;
+  }
+
+  // Authorization check
+  if (allowedRoles && !allowedRoles.includes(user.Role)) {
+    if (user.Role === 'Candidate') {
+      return <Navigate to="/assessments" replace />;
+    }
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <MainLayout>{children}</MainLayout>;
@@ -96,6 +143,14 @@ function AppContent() {
         }
       />
       <Route
+        path="/candidate/login"
+        element={
+          <AuthLayout>
+            <CandidateLogin />
+          </AuthLayout>
+        }
+      />
+      <Route
         path="/"
         element={
           <ProtectedRoute>
@@ -106,7 +161,7 @@ function AppContent() {
       <Route
         path="/dashboard"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['Recruiter', 'Admin']}>
             <Dashboard />
           </ProtectedRoute>
         }
@@ -114,7 +169,7 @@ function AppContent() {
       <Route
         path="/jobs"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['Recruiter', 'Admin']}>
             <Jobs />
           </ProtectedRoute>
         }
@@ -122,7 +177,7 @@ function AppContent() {
       <Route
         path="/upload"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['Recruiter', 'Admin']}>
             <UploadPage />
           </ProtectedRoute>
         }
@@ -130,7 +185,7 @@ function AppContent() {
       <Route
         path="/candidate/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['Recruiter', 'Admin']}>
             <CandidateDetail />
           </ProtectedRoute>
         }
@@ -138,7 +193,7 @@ function AppContent() {
       <Route
         path="/compare"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['Recruiter', 'Admin']}>
             <CandidateCompare />
           </ProtectedRoute>
         }
@@ -146,7 +201,7 @@ function AppContent() {
       <Route
         path="/interviews"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['Recruiter', 'Admin']}>
             <Interviews />
           </ProtectedRoute>
         }
@@ -154,7 +209,7 @@ function AppContent() {
       <Route
         path="/assessments"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['Candidate']}>
             <Assessments />
           </ProtectedRoute>
         }
@@ -162,7 +217,7 @@ function AppContent() {
       <Route
         path="/admin/assessments"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['Admin']}>
             <AdminAssessments />
           </ProtectedRoute>
         }
@@ -170,7 +225,7 @@ function AppContent() {
       <Route
         path="/results"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['Candidate', 'Recruiter', 'Admin']}>
             <Results />
           </ProtectedRoute>
         }
@@ -178,7 +233,7 @@ function AppContent() {
       <Route
         path="/coach"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['Recruiter', 'Admin']}>
             <CandidateCoach />
           </ProtectedRoute>
         }

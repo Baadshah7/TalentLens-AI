@@ -7,7 +7,15 @@ from auth import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> models.User:
+class CandidateUserWrapper:
+    def __init__(self, candidate):
+        self.User_ID = candidate.Candidate_ID
+        self.Candidate_ID = candidate.Candidate_ID
+        self.Email = candidate.Email
+        self.Name = candidate.Name
+        self.Role = "Candidate"
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -22,8 +30,15 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         
     email: str = payload.get("sub")
     user_id: int = payload.get("user_id")
+    role: str = payload.get("role", "Recruiter")
     if email is None or user_id is None:
         raise credentials_exception
+        
+    if role == "Candidate":
+        candidate = db.query(models.Candidate).filter(models.Candidate.Candidate_ID == user_id).first()
+        if candidate is None:
+            raise credentials_exception
+        return CandidateUserWrapper(candidate)
         
     user = db.query(models.User).filter(models.User.User_ID == user_id).first()
     if user is None:

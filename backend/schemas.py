@@ -375,3 +375,140 @@ class ChatbotQuery(BaseModel):
     question: str
     sample_answer: Optional[str] = None
 
+
+# Candidate OTP Auth schemas
+class CandidateLoginRequest(BaseModel):
+    Email: EmailStr
+
+class CandidateLoginVerify(BaseModel):
+    Email: EmailStr
+    OTP_Code: str
+
+class CandidateTokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+    Candidate_ID: int
+    Email: str
+    Name: str
+    Role: str
+
+# Multi-Level Assessments schemas
+class DomainResponse(BaseModel):
+    Domain_ID: int
+    Name: str
+    Icon_Slug: str
+    Description: Optional[str] = None
+    Is_Active: bool
+    Completion_Percentage: float = 0.0
+
+    class Config:
+        from_attributes = True
+
+class SubLevelResponse(BaseModel):
+    Sub_Level_ID: int
+    Track_ID: int
+    Level_Number: int
+    Name: str
+    Question_Count: int
+    Pass_Threshold_Percent: float
+    Time_Limit_Minutes: int
+    Is_Unlocked: bool = False
+    Is_Completed: bool = False
+    Best_Score: float = 0.0
+
+    class Config:
+        from_attributes = True
+
+class TrackResponse(BaseModel):
+    Track_ID: int
+    Domain_ID: int
+    Name: str
+    Order_Index: int
+    Sub_Levels: List[SubLevelResponse] = []
+
+    class Config:
+        from_attributes = True
+
+class QuestionNewResponse(BaseModel):
+    Question_ID: int
+    Sub_Level_ID: int
+    Question_Text: str
+    Options: List[str]
+
+    class Config:
+        from_attributes = True
+
+class QuestionNewAdminResponse(BaseModel):
+    Question_ID: Optional[int] = None
+    Question_Text: str
+    Options: List[str]
+    Correct_Option_Index: int
+    Explanation: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class QuestionNewAdminList(BaseModel):
+    Questions: List[QuestionNewAdminResponse]
+
+class AttemptStartResponse(BaseModel):
+    Attempt_ID: int
+    Sub_Level_ID: int
+    Candidate_ID: int
+    Started_At: datetime
+
+    class Config:
+        from_attributes = True
+
+class AnswerSubmit(BaseModel):
+    Question_ID: int
+    Selected_Option_Index: Optional[int] = None  # None indicates skipped
+
+class AttemptSubmitRequest(BaseModel):
+    Answers: List[AnswerSubmit]
+    Time_Taken_Seconds: int
+
+class AttemptSubmitResponse(BaseModel):
+    Attempt_ID: int
+    Score_Percent: float
+    Correct_Count: int
+    Incorrect_Count: int
+    Skipped_Count: int
+    Is_Passed: bool
+
+    class Config:
+        from_attributes = True
+
+class AttemptAnswerDetail(BaseModel):
+    Question_ID: int
+    Question_Text: str
+    Options: List[str]
+    Selected_Option_Index: Optional[int] = None
+    Correct_Option_Index: int
+    Is_Correct: bool
+    Explanation: Optional[str] = None
+
+class AttemptDetailResponse(BaseModel):
+    Attempt_ID: int
+    Sub_Level_ID: int
+    Started_At: datetime
+    Submitted_At: Optional[datetime] = None
+    Score_Percent: Optional[float] = None
+    Correct_Count: Optional[int] = None
+    Incorrect_Count: Optional[int] = None
+    Skipped_Count: Optional[int] = None
+    Time_Taken_Seconds: Optional[int] = None
+    Is_Passed: bool
+    Answers: List[AttemptAnswerDetail] = []
+
+    class Config:
+        from_attributes = True
+
+class ProgressSummaryResponse(BaseModel):
+    total_attempts: int
+    completed_levels: int
+    xp: int
+    streak: int
+    achievements: List[str] = []
+
+
