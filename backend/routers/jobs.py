@@ -168,7 +168,7 @@ def update_job(
 def delete_job(
     job_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_admin)  # Strictly Admin-only
+    current_user: models.User = Depends(get_current_user)  # Recruiter (owner) or Admin
 ):
     job = db.query(models.Job).filter(models.Job.Job_ID == job_id).first()
     if not job:
@@ -183,7 +183,7 @@ def delete_job(
         db,
         user_id=current_user.User_ID,
         action="Job Deleted",
-        details=f"Admin permanently deleted job '{job_title}' (ID: {job_id}) and all associated records."
+        details=f"User {current_user.Name} ({current_user.Role}) permanently deleted job '{job_title}' (ID: {job_id}) and all associated records."
     )
 
     return {"message": "Job deleted successfully"}
