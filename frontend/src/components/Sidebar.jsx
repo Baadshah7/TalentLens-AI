@@ -12,11 +12,16 @@ const Sidebar = ({ isOpen, onClose }) => {
       { to: '/assessments', label: 'Skill Assessments', icon: Award },
       { to: '/profile', label: 'Profile & Applications', icon: UserIcon },
       { to: '/coach', label: 'AI Career Coach', icon: Sparkles },
+      { to: '/interviews', label: 'Interviews', icon: Calendar },
     ];
   } else if (user?.Role === 'Admin') {
     navItems = [
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { to: '/admin/assessments', label: 'Manage Assessments', icon: Briefcase },
+      { to: '/jobs', label: 'Jobs', icon: Briefcase },
+      { to: '/upload', label: 'Resume Upload', icon: Upload },
+      { to: '/interviews', label: 'Interviews', icon: Calendar },
+      { to: '/assessments', label: 'Candidate Assessments', icon: Award },
+      { to: '/admin/assessments', label: 'Manage Assessments', icon: ShieldAlert },
     ];
   } else {
     // Recruiter role
@@ -38,7 +43,9 @@ const Sidebar = ({ isOpen, onClose }) => {
           </div>
           <div>
             <h1 className="font-semibold text-slate-100 tracking-tight leading-none text-base">TalentLens AI</h1>
-            <span className="text-xs text-slate-400 font-medium">Recruitment Portal</span>
+            <span className="text-xs text-slate-400 font-medium">
+              {user?.Role === 'Candidate' ? 'Candidate Portal' : 'Recruitment Portal'}
+            </span>
           </div>
         </div>
         

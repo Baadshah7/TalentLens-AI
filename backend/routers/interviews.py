@@ -70,7 +70,16 @@ def list_interviews(
     current_user: models.User = Depends(get_current_user)
 ):
     query = db.query(models.Interview)
-    if current_user.Role != "Admin":
+    if current_user.Role == "Candidate":
+        cand = db.query(models.Candidate).filter(models.Candidate.User_ID == current_user.User_ID).first()
+        if not cand:
+            # Fallback for legacy OTP tokens
+            cand = db.query(models.Candidate).filter(models.Candidate.Candidate_ID == current_user.User_ID).first()
+        if cand:
+            query = query.filter(models.Interview.Candidate_ID == cand.Candidate_ID)
+        else:
+            query = query.filter(models.Interview.Candidate_ID == -1)
+    elif current_user.Role != "Admin":
         query = query.join(models.Job).filter(models.Job.Created_By == current_user.User_ID)
     
     if job_id is not None:
@@ -187,6 +196,83 @@ def delete_interview(
     )
     return {"message": "Interview deleted successfully"}
 
+
+@router.patch("/{id}/notes", response_model=schemas.InterviewResponse)
+def update_interview_notes(
+    id: int,
+    notes_data: schemas.InterviewNotesUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    interview = db.query(models.Interview).filter(models.Interview.Interview_ID == id).first()
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    job = db.query(models.Job).filter(models.Job.Job_ID == interview.Job_ID).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job description not found")
+    ensure_job_access(job, current_user)
+    
+    interview.Notes = notes_data.Notes
+    db.commit()
+    db.refresh(interview)
+    
+    cand = db.query(models.Candidate).filter(models.Candidate.Candidate_ID == interview.Candidate_ID).first()
+    job = db.query(models.Job).filter(models.Job.Job_ID == interview.Job_ID).first()
+    is_blind = job.Blind_Mode and not cand.Is_Identity_Revealed if (job and cand) else False
+    name = f"Candidate #{cand.Candidate_ID}" if is_blind else (cand.Name if cand else "Unknown")
+    
+    return {
+        "Interview_ID": interview.Interview_ID,
+        "Candidate_ID": interview.Candidate_ID,
+        "Job_ID": interview.Job_ID,
+        "Scheduled_By": interview.Scheduled_By,
+        "Interview_DateTime": interview.Interview_DateTime,
+        "Mode": interview.Mode,
+        "Notes": interview.Notes,
+        "Status": interview.Status,
+        "Created_At": interview.Created_At,
+        "Candidate_Name": name,
+        "Job_Title": job.Job_Title if job else "Unknown"
+    }
+
+@router.post("/{id}/complete", response_model=schemas.InterviewResponse)
+def complete_interview(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    interview = db.query(models.Interview).filter(models.Interview.Interview_ID == id).first()
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    job = db.query(models.Job).filter(models.Job.Job_ID == interview.Job_ID).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job description not found")
+    ensure_job_access(job, current_user)
+    
+    interview.Status = "Completed"
+    db.commit()
+    db.refresh(interview)
+    
+    log_action(db, user_id=current_user.User_ID, action="Interview Completed", details=f"Interview #{id} marked as Completed.")
+    
+    cand = db.query(models.Candidate).filter(models.Candidate.Candidate_ID == interview.Candidate_ID).first()
+    job = db.query(models.Job).filter(models.Job.Job_ID == interview.Job_ID).first()
+    is_blind = job.Blind_Mode and not cand.Is_Identity_Revealed if (job and cand) else False
+    name = f"Candidate #{cand.Candidate_ID}" if is_blind else (cand.Name if cand else "Unknown")
+    
+    return {
+        "Interview_ID": interview.Interview_ID,
+        "Candidate_ID": interview.Candidate_ID,
+        "Job_ID": interview.Job_ID,
+        "Scheduled_By": interview.Scheduled_By,
+        "Interview_DateTime": interview.Interview_DateTime,
+        "Mode": interview.Mode,
+        "Notes": interview.Notes,
+        "Status": interview.Status,
+        "Created_At": interview.Created_At,
+        "Candidate_Name": name,
+        "Job_Title": job.Job_Title if job else "Unknown"
+    }
 
 @router.websocket('/ws/{room_id}')
 async def interview_ws(websocket: WebSocket, room_id: str):

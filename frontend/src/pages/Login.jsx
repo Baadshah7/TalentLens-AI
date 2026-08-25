@@ -46,13 +46,9 @@ const Login = () => {
         if (!res.success) {
           setError(res.message);
         } else {
-          // Verify that logged-in user role matches the selected tab
           const storedUser = JSON.parse(sessionStorage.getItem('user'));
-          if (storedUser && storedUser.Role !== role) {
-            setError(`No ${role} account found with these credentials.`);
-            sessionStorage.removeItem('token');
-            sessionStorage.removeItem('user');
-          } else {
+          if (storedUser) {
+            setRole(storedUser.Role);
             redirectUser(storedUser);
           }
         }

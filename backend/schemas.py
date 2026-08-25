@@ -160,6 +160,9 @@ class InterviewUpdate(BaseModel):
     Notes: Optional[str] = None
     Status: str = Field(..., pattern="^(Scheduled|Completed|Cancelled|Rescheduled)$")
 
+class InterviewNotesUpdate(BaseModel):
+    Notes: str
+
 # Candidate schemas
 class CandidateResponse(BaseModel):
     Candidate_ID: int

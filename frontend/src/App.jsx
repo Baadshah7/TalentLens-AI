@@ -157,7 +157,7 @@ function AppContent() {
       <Route
         path="/interviews"
         element={
-          <ProtectedRoute allowedRoles={['Recruiter', 'Admin']}>
+          <ProtectedRoute allowedRoles={['Recruiter', 'Admin', 'Candidate']}>
             <Interviews />
           </ProtectedRoute>
         }
@@ -165,7 +165,7 @@ function AppContent() {
       <Route
         path="/assessments"
         element={
-          <ProtectedRoute allowedRoles={['Candidate']}>
+          <ProtectedRoute allowedRoles={['Candidate', 'Admin']}>
             <Assessments />
           </ProtectedRoute>
         }
@@ -181,7 +181,7 @@ function AppContent() {
       <Route
         path="/profile"
         element={
-          <ProtectedRoute allowedRoles={['Candidate']}>
+          <ProtectedRoute allowedRoles={['Candidate', 'Admin']}>
             <Profile />
           </ProtectedRoute>
         }
@@ -189,7 +189,7 @@ function AppContent() {
       <Route
         path="/coach"
         element={
-          <ProtectedRoute allowedRoles={['Candidate']}>
+          <ProtectedRoute allowedRoles={['Candidate', 'Admin']}>
             <CandidateCoach />
           </ProtectedRoute>
         }
