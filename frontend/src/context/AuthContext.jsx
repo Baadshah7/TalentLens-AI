@@ -24,10 +24,10 @@ const isTokenExpired = (token) => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [token, setToken] = useState(localStorage.getItem('token') || '');
+  const [token, setToken] = useState(sessionStorage.getItem('token') || '');
   const [user, setUser] = useState(() => {
-    const storedUser = localStorage.getItem('user');
-    const storedToken = localStorage.getItem('token');
+    const storedUser = sessionStorage.getItem('user');
+    const storedToken = sessionStorage.getItem('token');
     if (storedUser && storedToken && !isTokenExpired(storedToken)) {
       try {
         return JSON.parse(storedUser);
@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }) => {
         logout();
       } else {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        const storedUser = localStorage.getItem('user');
+        const storedUser = sessionStorage.getItem('user');
         if (storedUser) {
           try {
             setUser(JSON.parse(storedUser));
@@ -84,8 +84,8 @@ export const AuthProvider = ({ children }) => {
       const response = await axios.post('/auth/login', { Email: email, Password: password });
       const { access_token, user: userData } = response.data;
       
-      localStorage.setItem('token', access_token);
-      localStorage.setItem('user', JSON.stringify(userData));
+      sessionStorage.setItem('token', access_token);
+      sessionStorage.setItem('user', JSON.stringify(userData));
       
       setToken(access_token);
       setUser(userData);
@@ -109,8 +109,8 @@ export const AuthProvider = ({ children }) => {
       });
       const { access_token, user: userData } = response.data;
       
-      localStorage.setItem('token', access_token);
-      localStorage.setItem('user', JSON.stringify(userData));
+      sessionStorage.setItem('token', access_token);
+      sessionStorage.setItem('user', JSON.stringify(userData));
       
       setToken(access_token);
       setUser(userData);
@@ -125,8 +125,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
     setToken('');
     setUser(null);
   };
@@ -156,8 +156,8 @@ export const AuthProvider = ({ children }) => {
         Role: Role
       };
       
-      localStorage.setItem('token', access_token);
-      localStorage.setItem('user', JSON.stringify(candidateUser));
+      sessionStorage.setItem('token', access_token);
+      sessionStorage.setItem('user', JSON.stringify(candidateUser));
       
       setToken(access_token);
       setUser(candidateUser);

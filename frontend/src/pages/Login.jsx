@@ -38,7 +38,7 @@ const Login = () => {
           setError(res.message);
         } else {
           // Registration success automatically logs in and redirects
-          const storedUser = JSON.parse(localStorage.getItem('user'));
+          const storedUser = JSON.parse(sessionStorage.getItem('user'));
           redirectUser(storedUser);
         }
       } else {
@@ -47,11 +47,11 @@ const Login = () => {
           setError(res.message);
         } else {
           // Verify that logged-in user role matches the selected tab
-          const storedUser = JSON.parse(localStorage.getItem('user'));
+          const storedUser = JSON.parse(sessionStorage.getItem('user'));
           if (storedUser && storedUser.Role !== role) {
             setError(`No ${role} account found with these credentials.`);
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
+            sessionStorage.removeItem('token');
+            sessionStorage.removeItem('user');
           } else {
             redirectUser(storedUser);
           }

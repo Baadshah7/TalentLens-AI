@@ -50,10 +50,10 @@ const Profile = () => {
       setSuccessMsg('Profile details updated successfully!');
       
       // Update local storage user name
-      const stored = JSON.parse(localStorage.getItem('user'));
+      const stored = JSON.parse(sessionStorage.getItem('user'));
       if (stored) {
         stored.Name = name;
-        localStorage.setItem('user', JSON.stringify(stored));
+        sessionStorage.setItem('user', JSON.stringify(stored));
       }
       
       fetchProfileData();
