@@ -37,19 +37,16 @@ const Login = () => {
         if (!res.success) {
           setError(res.message);
         } else {
-          // Registration success automatically logs in and redirects
-          const storedUser = JSON.parse(sessionStorage.getItem('user'));
-          redirectUser(storedUser);
+          redirectUser(res.user);
         }
       } else {
         const res = await login(email, password);
         if (!res.success) {
           setError(res.message);
         } else {
-          const storedUser = JSON.parse(sessionStorage.getItem('user'));
-          if (storedUser) {
-            setRole(storedUser.Role);
-            redirectUser(storedUser);
+          if (res.user) {
+            setRole(res.user.Role);
+            redirectUser(res.user);
           }
         }
       }

@@ -90,7 +90,7 @@ export const AuthProvider = ({ children }) => {
       setToken(access_token);
       setUser(userData);
       setSessionExpired(false);
-      return { success: true };
+      return { success: true, user: userData };
     } catch (error) {
       return { 
         success: false, 
@@ -115,7 +115,7 @@ export const AuthProvider = ({ children }) => {
       setToken(access_token);
       setUser(userData);
       setSessionExpired(false);
-      return { success: true };
+      return { success: true, user: userData };
     } catch (error) {
       return { 
         success: false, 
