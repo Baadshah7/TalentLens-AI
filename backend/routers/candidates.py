@@ -104,8 +104,18 @@ def upload_resumes(
                 
             is_valid_header = check_file_signature(file_path, ext)
             is_corrupted = check_file_corrupted(file_path, ext) or not is_valid_header
-            processing_status = "Failed" if is_corrupted else "Pending"
             
+            if is_corrupted:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                log_action(db, user_id=current_user.User_ID, action="Candidate Upload Rejected", details=f"Rejected corrupted resume '{filename}' for job ID {job_id}.")
+                results.append({
+                    "filename": filename,
+                    "status": "Rejected",
+                    "error": "Invalid or corrupted file structure. Please upload a valid PDF, DOCX, or TXT file."
+                })
+                continue
+                
             candidate_name = extract_name_from_filename(filename)
             
             candidate = models.Candidate(
@@ -114,7 +124,7 @@ def upload_resumes(
                 Phone=None,
                 Location=None,
                 Resume_File_Path=file_path,
-                Processing_Status=processing_status,
+                Processing_Status="Pending",
                 Job_ID=job_id
             )
             db.add(candidate)
@@ -122,45 +132,39 @@ def upload_resumes(
 
             overall_score = 0.0
             error_details = None
-
-            if is_corrupted:
-                error_details = "File magic number signature mismatch or corrupted structure."
-                log_action(db, user_id=current_user.User_ID, action="Candidate Processing", details=f"Rejected resume '{filename}' for job ID {job_id}.")
-                processing_id = None
-            else:
-                processing_id = str(uuid.uuid4())
-                db.add(models.ResumeProcessingTask(
-                    Task_ID=processing_id,
-                    Candidate_ID=candidate.Candidate_ID,
-                    Submitted_By=current_user.User_ID,
-                    Status="PENDING",
-                ))
-                db.commit()
+            
+            processing_id = str(uuid.uuid4())
+            db.add(models.ResumeProcessingTask(
+                Task_ID=processing_id,
+                Candidate_ID=candidate.Candidate_ID,
+                Submitted_By=current_user.User_ID,
+                Status="PENDING",
+            ))
+            db.commit()
+            try:
+                process_resume.delay(processing_id)
+            except Exception:
+                print("Celery workers are offline. Running parsing synchronously in fallback mode...")
+                from processing import process_resume_task
                 try:
-                    process_resume.delay(processing_id)
-                except Exception:
-                    print("Celery workers are offline. Running parsing synchronously in fallback mode...")
-                    from processing import process_resume_task
-                    try:
-                        process_resume_task(processing_id)
-                        db.refresh(candidate)
-                    except Exception as parse_err:
-                        print(f"Synchronous fallback parsing failed: {parse_err}")
-                        candidate.Processing_Status = "Failed"
-                        task = db.query(models.ResumeProcessingTask).filter(models.ResumeProcessingTask.Task_ID == processing_id).first()
-                        if task:
-                            task.Status = "FAILED"
-                            task.Error_Message = "Synchronous parsing failed."
-                        db.commit()
-                        error_details = f"Resume processing failed: {str(parse_err)}"
+                    process_resume_task(processing_id)
+                    db.refresh(candidate)
+                except Exception as parse_err:
+                    print(f"Synchronous fallback parsing failed: {parse_err}")
+                    candidate.Processing_Status = "Failed"
+                    task = db.query(models.ResumeProcessingTask).filter(models.ResumeProcessingTask.Task_ID == processing_id).first()
+                    if task:
+                        task.Status = "FAILED"
+                        task.Error_Message = "Synchronous parsing failed."
+                    db.commit()
+                    error_details = f"Resume processing failed: {str(parse_err)}"
 
-            if not is_corrupted:
-                log_action(
-                    db,
-                    user_id=current_user.User_ID,
-                    action="Candidate Upload",
-                    details=f"Accepted resume '{filename}' for job ID {job_id} for background processing.",
-                )
+            log_action(
+                db,
+                user_id=current_user.User_ID,
+                action="Candidate Upload",
+                details=f"Accepted resume '{filename}' for job ID {job_id} for background processing.",
+            )
 
             results.append({
                 "candidate_id": candidate.Candidate_ID,
