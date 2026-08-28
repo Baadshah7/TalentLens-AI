@@ -89,7 +89,8 @@ def process_resume_task(task_id: str) -> None:
 
         parsed_data = parse_resume_full(candidate.Resume_File_Path, candidate.Name)
         save_parsed_resume_to_db(candidate, parsed_data, db)
-        score_candidate(candidate.Candidate_ID, candidate.Job_ID, db)
+        if candidate.Job_ID is not None:
+            score_candidate(candidate.Candidate_ID, candidate.Job_ID, db)
 
         candidate.Processing_Status = "Parsed"
         task.Status = "COMPLETED"
@@ -99,7 +100,7 @@ def process_resume_task(task_id: str) -> None:
             db,
             user_id=task.Submitted_By,
             action="Candidate Processing",
-            details=f"Processed resume for job ID {candidate.Job_ID}.",
+            details=f"Processed resume for candidate #{candidate.Candidate_ID}.",
         )
     except OperationalError:
         db.rollback()

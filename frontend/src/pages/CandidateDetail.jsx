@@ -29,6 +29,8 @@ const CandidateDetail = () => {
   const [interviewDateTime, setInterviewDateTime] = useState('');
   const [interviewMode, setInterviewMode] = useState('Online');
   const [interviewNotes, setInterviewNotes] = useState('');
+  const [customMeetingUrl, setCustomMeetingUrl] = useState('');
+  const [selectedPlatform, setSelectedPlatform] = useState('Google Meet');
 
   const fetchCandidateData = async () => {
     try {
@@ -807,36 +809,121 @@ const CandidateDetail = () => {
             
             <form onSubmit={handleDecisionSubmit} className="space-y-4">
               {selectedDecision === 'Interview' && (
-                <div className="space-y-3.5 border-b border-slate-800/60 pb-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Interview Date & Time</label>
-                    <input
-                      type="datetime-local"
-                      value={interviewDateTime}
-                      onChange={(e) => setInterviewDateTime(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-slate-100 outline-none transition text-xs"
-                      required
-                    />
+                <div className="space-y-4 border-b border-slate-800/60 pb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Interview Date & Time</label>
+                      <input
+                        type="datetime-local"
+                        value={interviewDateTime}
+                        onChange={(e) => setInterviewDateTime(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-slate-100 outline-none transition text-xs"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Interview Mode</label>
+                      <select
+                        value={interviewMode}
+                        onChange={(e) => setInterviewMode(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-slate-100 outline-none transition text-xs font-semibold"
+                      >
+                        <option value="Online">📹 Online Video Meeting (Google Meet / Zoom / MS Teams)</option>
+                        <option value="In-Person">🏢 In-Person Office Meeting</option>
+                        <option value="Phone">📞 Phone Call Interview</option>
+                      </select>
+                    </div>
                   </div>
+
+                  {/* Clean Video Meeting Link Input */}
+                  {interviewMode === 'Online' && (
+                    <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 animate-in fade-in duration-300">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[11px] font-bold text-slate-200 uppercase tracking-wide">
+                          Video Meeting Link
+                        </label>
+                        <div className="flex items-center space-x-2 text-[10px] text-slate-400 font-medium">
+                          <span>Supported:</span>
+                          <span className="text-emerald-400 font-bold">Google Meet</span>
+                          <span>•</span>
+                          <span className="text-sky-400 font-bold">Zoom</span>
+                          <span>•</span>
+                          <span className="text-indigo-400 font-bold">MS Teams</span>
+                        </div>
+                      </div>
+
+                      {/* Platform Helper Tags */}
+                      <div className="flex items-center space-x-2 pt-1">
+                        {['Google Meet', 'Zoom', 'MS Teams', 'Other'].map(platform => (
+                          <button
+                            key={platform}
+                            type="button"
+                            onClick={() => setSelectedPlatform(platform)}
+                            className={`px-3 py-1 rounded-lg text-[10px] font-bold transition border ${
+                              selectedPlatform === platform
+                                ? 'bg-slate-800 border-slate-700 text-slate-100 shadow-sm'
+                                : 'bg-slate-950 border-slate-850 text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            {platform}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* URL Input Box & Launch Action */}
+                      <div className="space-y-1.5 pt-1">
+                        <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">
+                          Paste {selectedPlatform} URL
+                        </label>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="url"
+                            value={customMeetingUrl}
+                            onChange={(e) => {
+                              const url = e.target.value;
+                              setCustomMeetingUrl(url);
+                              setInterviewNotes(url ? `📹 ${selectedPlatform} Join Link: ${url}` : '');
+                            }}
+                            placeholder={
+                              selectedPlatform === 'Google Meet' ? 'https://meet.google.com/abc-defg-hij' :
+                              selectedPlatform === 'Zoom' ? 'https://zoom.us/j/1234567890' :
+                              selectedPlatform === 'MS Teams' ? 'https://teams.microsoft.com/l/meetup-join/...' :
+                              'Paste meeting URL here...'
+                            }
+                            className="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 focus:border-brand-500 rounded-xl text-slate-100 outline-none text-xs font-mono"
+                          />
+
+                          {customMeetingUrl && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                let targetUrl = customMeetingUrl.trim();
+                                if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+                                  targetUrl = 'https://' + targetUrl;
+                                }
+                                window.open(targetUrl, '_blank');
+                              }}
+                              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shrink-0 flex items-center space-x-1 shadow-md active:scale-95 cursor-pointer"
+                              title="Test meeting link by opening in a new tab"
+                            >
+                              <span>Open Link →</span>
+                            </button>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-500 italic block mt-1">
+                          Paste the exact meeting URL generated from your {selectedPlatform} dashboard.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-1.5">
-                    <label className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Interview Mode</label>
-                    <select
-                      value={interviewMode}
-                      onChange={(e) => setInterviewMode(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-slate-100 outline-none transition text-xs"
-                    >
-                      <option value="Online">Online Video Meeting</option>
-                      <option value="In-Person">In-Person Office Meeting</option>
-                      <option value="Phone">Phone Call Interview</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Interview Notes / Join Links</label>
+                    <label className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Additional Interview Instructions / Passcode</label>
                     <textarea
                       value={interviewNotes}
                       onChange={(e) => setInterviewNotes(e.target.value)}
-                      placeholder="Add meeting details or links..."
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-slate-100 outline-none transition text-xs min-h-[50px]"
+                      placeholder="Add meeting passcode, agenda, or instructions for candidate..."
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-slate-100 outline-none transition text-xs min-h-[60px] font-mono"
                     />
                   </div>
                 </div>

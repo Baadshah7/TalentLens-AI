@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { Calendar, Clock, Video, Phone, MapPin, XCircle, RefreshCw, AlertCircle, Edit, Trash2, Mic, MicOff, Camera, CameraOff, ScreenShare, Sparkles, User, ShieldAlert, CheckCircle, ChevronRight, X, Info, Award, MessageSquare } from 'lucide-react';
+import { Calendar, Clock, Video, Phone, MapPin, XCircle, RefreshCw, AlertCircle, Edit, Trash2, Mic, MicOff, Camera, CameraOff, ScreenShare, Sparkles, User, ShieldAlert, CheckCircle, ChevronRight, X, Info, Award, MessageSquare, Copy, Check } from 'lucide-react';
 
 const Interviews = () => {
   const [interviews, setInterviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // Reschedule modal states
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
@@ -151,47 +152,17 @@ const Interviews = () => {
   const clientId = useRef(Math.random().toString(36).substring(7)).current;
 
   const joinLive = async (interview) => {
-    setLiveInterview(interview);
-    setLiveRoomId(interview.Interview_ID);
-    setLiveMessages([]);
-    setLiveInput('');
-    setCallDuration(0);
-    setConnState('Connecting');
-    setIsMuted(false);
-    setIsCameraOff(false);
-    setLocalStream(null);
-    setRemoteStream(null);
-    setShowSummary(false);
+    // Extract any http/https URL from notes
+    const urlMatch = interview.Notes ? interview.Notes.match(/https?:\/\/[^\s]+/) : null;
     
-    // Parse notes
-    let parsedNotes = [];
-    try {
-      if (interview.Notes) {
-        parsedNotes = JSON.parse(interview.Notes);
-        if (!Array.isArray(parsedNotes)) parsedNotes = [];
-      }
-    } catch (e) {
-      if (interview.Notes) {
-        parsedNotes = [{
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          tag: 'General',
-          text: interview.Notes
-        }];
-      }
+    if (urlMatch && urlMatch[0]) {
+      window.open(urlMatch[0], '_blank');
+      return;
     }
-    setStructuredNotes(parsedNotes);
-    
-    // Fetch candidate details for quick-reference sidebar
-    if (user?.Role !== 'Candidate') {
-      try {
-        const res = await axios.get(`/candidates/${interview.Candidate_ID}/detail`);
-        setCandidateDetail(res.data);
-      } catch (err) {
-        console.error("Failed to fetch candidate details for sidebar", err);
-      }
-    }
-    
-    setLiveOpen(true);
+
+    // If no URL found in notes, guide user to add meeting link
+    alert('No meeting link was found in notes.\n\nPlease paste your Google Meet, Zoom, or Teams link in the interview settings.');
+    openRescheduleModal(interview);
   };
 
   const [askedQuestions, setAskedQuestions] = useState([]);
@@ -271,6 +242,36 @@ const Interviews = () => {
     } else {
       setIsCameraOff(!isCameraOff);
     }
+  };
+
+  const handleScreenShare = async () => {
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        localStreamRef.current = screenStream;
+        setLocalStream(screenStream);
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = screenStream;
+        }
+        if (peerConnectionRef.current) {
+          const videoTrack = screenStream.getVideoTracks()[0];
+          const senders = peerConnectionRef.current.getSenders();
+          const sender = senders.find(s => s.track && s.track.kind === 'video');
+          if (sender) {
+            sender.replaceTrack(videoTrack);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Screen share cancelled or unsupported:", err);
+    }
+  };
+
+  const copyRoomLink = () => {
+    const link = `${window.location.origin}/interviews?room=${liveRoomId}`;
+    navigator.clipboard.writeText(link);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const handleAddTaggedNote = (tag) => {
@@ -608,8 +609,8 @@ const Interviews = () => {
                       aria-label={`Join live interview room ${itv.Interview_ID}`}
                       className="px-2.5 py-1.5 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 rounded-lg text-[10px] font-bold transition flex items-center"
                     >
-                      <Video className="h-3 w-3 mr-1" />
-                      <span>Start / Join Live</span>
+                      <Video className="h-3 w-3 mr-1 text-emerald-400" />
+                      <span>Join Video Meeting</span>
                     </button>
                     {user?.Role !== 'Candidate' && (
                       <button
@@ -933,6 +934,24 @@ const Interviews = () => {
                   title={isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
                 >
                   {isCameraOff ? <CameraOff className="h-4.5 w-4.5" /> : <Camera className="h-4.5 w-4.5" />}
+                </button>
+
+                {/* Screen Share button */}
+                <button
+                  onClick={handleScreenShare}
+                  className="p-3.5 bg-slate-950 border border-slate-800 text-slate-300 hover:text-sky-300 hover:border-sky-800 rounded-xl font-bold transition flex items-center justify-center"
+                  title="Share Screen"
+                >
+                  <ScreenShare className="h-4.5 w-4.5" />
+                </button>
+
+                {/* Copy Invite Link button */}
+                <button
+                  onClick={copyRoomLink}
+                  className="p-3.5 bg-slate-950 border border-slate-800 text-slate-300 hover:text-indigo-300 hover:border-indigo-800 rounded-xl font-bold transition flex items-center justify-center"
+                  title="Copy Candidate Join Link"
+                >
+                  {copiedLink ? <Check className="h-4.5 w-4.5 text-emerald-400" /> : <Copy className="h-4.5 w-4.5" />}
                 </button>
 
                 {/* End Call/Leave Room button */}

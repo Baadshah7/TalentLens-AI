@@ -225,15 +225,15 @@ const Jobs = () => {
     <div className="space-y-6 p-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-white">Job Openings</h2>
-          <p className="text-sm text-slate-400 mt-1">Manage active career roles and score weighting matrixes.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-white">Job Requisitions</h2>
+          <p className="text-sm text-slate-400 mt-1">Manage active job requisitions, skill criteria, and evaluation weights.</p>
         </div>
         <button
           onClick={openCreateModal}
-          className="flex items-center space-x-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold transition-all shadow-md active:scale-95"
+          className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-indigo-600 hover:opacity-95 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
         >
           <Plus className="h-4 w-4" />
-          <span>Add Job</span>
+          <span>Create Job Position</span>
         </button>
       </div>
 

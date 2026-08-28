@@ -404,6 +404,10 @@ class DomainResponse(BaseModel):
     Description: Optional[str] = None
     Is_Active: bool
     Completion_Percentage: float = 0.0
+    Total_Score_Correct: int = 0
+    Total_Score_Percent: float = 0.0
+    Max_Score_Possible: int = 100
+    Level_Scores: List[Dict[str, Any]] = []
 
     class Config:
         from_attributes = True
@@ -419,6 +423,7 @@ class SubLevelResponse(BaseModel):
     Is_Unlocked: bool = False
     Is_Completed: bool = False
     Best_Score: float = 0.0
+    Best_Correct_Count: int = 0
 
     class Config:
         from_attributes = True
@@ -429,6 +434,10 @@ class TrackResponse(BaseModel):
     Name: str
     Order_Index: int
     Sub_Levels: List[SubLevelResponse] = []
+    Total_Domain_Score_Correct: int = 0
+    Total_Domain_Score_Percent: float = 0.0
+    Max_Possible_Domain_Score: int = 100
+    Completed_Levels_Count: int = 0
 
     class Config:
         from_attributes = True
@@ -438,6 +447,7 @@ class QuestionNewResponse(BaseModel):
     Sub_Level_ID: int
     Question_Text: str
     Options: List[str]
+    Correct_Option_Index: int  # Exposed so frontend can perform client-side shuffling
 
     class Config:
         from_attributes = True

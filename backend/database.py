@@ -4,7 +4,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-DEFAULT_DATABASE_URL = "sqlite:///./talentlens.db"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_DB_PATH = os.path.join(BASE_DIR, "talentlens.db")
+DEFAULT_DATABASE_URL = f"sqlite:///{DEFAULT_DB_PATH.replace(os.sep, '/')}"
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
 
 # Normalize URLs emitted by older PostgreSQL hosting services.

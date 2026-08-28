@@ -240,11 +240,51 @@ const AdminAssessments = () => {
     setQuestions(prev => prev.map((q, idx) => idx === qIdx ? { ...q, Explanation: explanation } : q));
   };
 
-  // Submit and Publish Questions to SQLite Pool (Sets Is_Published=True)
+  // Seed default questions across all missing levels
+  const handleSeedAll = async () => {
+    try {
+      setBatchGenerating(true);
+      setError('');
+      setSuccess('');
+      const res = await axios.post('/assessments/admin/seed-all-questions');
+      setSuccess(res.data.message || 'Successfully seeded default technical questions across all domain tracks!');
+      fetchStatus();
+      if (selectedSubLevelId) {
+        const resQ = await axios.get(`/assessments/admin/sub-levels/${selectedSubLevelId}/questions`);
+        setQuestions(resQ.data.Questions || []);
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Failed to seed default domain questions.');
+    } finally {
+      setBatchGenerating(false);
+    }
+  };
+
+  // Add new question to active editor level
+  const handleAddQuestion = () => {
+    setQuestions(prev => [
+      ...prev,
+      {
+        Question_Text: `Question ${prev.length + 1}: Enter technical scenario...`,
+        Options: ['Option A', 'Option B', 'Option C', 'Option D'],
+        Correct_Option_Index: 0,
+        Explanation: 'Provide detailed explanation for correct answer choice...'
+      }
+    ]);
+  };
+
+  // Remove a question from the active editor level by index
+  const handleDeleteQuestion = (index) => {
+    if (!window.confirm(`Remove Question ${index + 1} from this level? This change isn't saved until you click Publish Live.`)) return;
+    setQuestions(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  // Submit and Publish Questions to Candidate Assessments Pool (Sets Is_Published=True)
   const handlePublish = async () => {
     if (!selectedSubLevelId) return;
-    if (questions.length !== 25) {
-      setError(`A level must contain exactly 25 questions to be published. Current count: ${questions.length}`);
+    if (questions.length < 1) {
+      setError(`A level must contain at least 1 question to be published. Current count: ${questions.length}`);
       return;
     }
     
@@ -255,7 +295,7 @@ const AdminAssessments = () => {
     try {
       const payload = { Questions: questions };
       const res = await axios.post(`/assessments/admin/publish-questions?sub_level_id=${selectedSubLevelId}`, payload);
-      setSuccess(res.data.message || 'Assessment questions successfully published live to candidates.');
+      setSuccess(res.data.message || 'Assessment questions successfully published live to Candidate Assessments!');
       fetchStatus();
     } catch (err) {
       console.error(err);
@@ -318,6 +358,14 @@ const AdminAssessments = () => {
             </div>
           </div>
           <div className="flex items-center space-x-3">
+            <button
+              onClick={handleSeedAll}
+              disabled={batchGenerating}
+              className="px-3.5 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-800/60 text-emerald-300 rounded-xl text-xs font-extrabold transition shadow-md flex items-center space-x-1.5 disabled:opacity-50"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Auto-Populate All Domains</span>
+            </button>
             <button
               onClick={() => setShowBatchConsole(!showBatchConsole)}
               className="px-3.5 py-1.5 border border-slate-800 hover:border-slate-700 bg-slate-900/60 text-slate-400 hover:text-slate-200 rounded-xl text-xs font-bold transition flex items-center space-x-1.5"
@@ -525,7 +573,16 @@ const AdminAssessments = () => {
 
         {/* Question editor workspace */}
         <div className="space-y-6 pt-3">
-          <div className="flex justify-between items-center"><h4 className="font-extrabold text-sm text-slate-300">Level MCQ Items ({questions.length}/25)</h4></div>
+          <div className="flex justify-between items-center">
+            <h4 className="font-extrabold text-sm text-slate-300">Level MCQ Items ({questions.length}/25)</h4>
+            <button
+              onClick={handleAddQuestion}
+              className="flex items-center space-x-1.5 px-3 py-1.5 border border-slate-800 hover:border-slate-700 bg-slate-900/60 hover:bg-slate-900 text-slate-400 hover:text-slate-200 rounded-xl text-xs font-bold transition"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add Question</span>
+            </button>
+          </div>
           {questionsLoading ? (
             <div className="text-center py-12 text-slate-500">
               <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-3 text-slate-650" />
@@ -546,7 +603,16 @@ const AdminAssessments = () => {
                   <div className="space-y-1">
                     <div className="flex justify-between items-center">
                       <label className="text-[10px] text-slate-500 uppercase tracking-widest font-black">Question {qIdx + 1}</label>
-                      <span className="text-[9px] text-indigo-400 font-bold">Multiple Choice (4 options)</span>
+                      <div className="flex items-center space-x-3">
+                        <span className="text-[9px] text-indigo-400 font-bold">Multiple Choice (4 options)</span>
+                        <button
+                          onClick={() => handleDeleteQuestion(qIdx)}
+                          title="Remove this question"
+                          className="p-1 rounded-lg text-slate-600 hover:text-rose-400 hover:bg-rose-950/20 border border-transparent hover:border-rose-900/30 transition-all duration-150"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
                     <input
                       type="text"

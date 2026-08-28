@@ -108,15 +108,15 @@ const Dashboard = () => {
 
   const statCards = [
     {
-      title: 'Total Job Openings',
+      title: 'Active Job Requisitions',
       value: stats.total_jobs,
       icon: Briefcase,
       color: 'border-l-blue-500 hover:shadow-blue-500/5 text-blue-400',
       bgColor: 'bg-gradient-to-br from-blue-600/5 to-indigo-600/5',
-      badge: 'Active career roles',
-      trend: stats.total_jobs > 0 ? '+1 active today' : 'No active jobs',
+      badge: 'Open positions',
+      trend: stats.total_jobs > 0 ? `${stats.total_jobs} active postings` : 'No active postings',
       trendColor: 'text-blue-400',
-      emptyNudge: 'Create a job posting to begin collecting resumes.',
+      emptyNudge: 'Create a job requisition to start receiving applicant resumes.',
     },
     {
       title: 'Total Applications',
@@ -124,10 +124,10 @@ const Dashboard = () => {
       icon: FileText,
       color: 'border-l-violet-500 hover:shadow-violet-500/5 text-violet-400',
       bgColor: 'bg-gradient-to-br from-violet-600/5 to-purple-600/5',
-      badge: 'Resumes uploaded',
-      trend: stats.total_candidates > 0 ? `+${stats.total_candidates} resumes parsed` : '0 resumes parsed',
+      badge: 'Screened resumes',
+      trend: stats.total_candidates > 0 ? `${stats.total_candidates} parsed profiles` : '0 profiles',
       trendColor: 'text-violet-400',
-      emptyNudge: 'Upload candidate resumes in the Resume Upload tab.',
+      emptyNudge: 'Upload candidate resumes to analyze skills and experience.',
     },
     {
       title: 'Shortlisted Candidates',
@@ -135,32 +135,32 @@ const Dashboard = () => {
       icon: CheckCircle,
       color: 'border-l-emerald-500 hover:shadow-emerald-500/5 text-emerald-400',
       bgColor: 'bg-gradient-to-br from-emerald-600/5 to-teal-600/5',
-      badge: `${metrics.shortlisting_percentage}% of screened`,
-      trend: stats.candidates_shortlisted > 0 ? `↑ ${metrics.shortlisting_percentage}% fit rate` : 'N/A fit rate',
+      badge: `${metrics.shortlisting_percentage}% match rate`,
+      trend: stats.candidates_shortlisted > 0 ? `${metrics.shortlisting_percentage}% qualified` : 'Pending review',
       trendColor: 'text-emerald-400',
-      emptyNudge: 'No one shortlisted yet — review screened candidates.',
+      emptyNudge: 'No candidates shortlisted yet. Review screened profiles to advance top talent.',
     },
     {
-      title: 'Rejected Candidates',
+      title: 'Archived / Rejected',
       value: stats.candidates_rejected,
       icon: XCircle,
       color: 'border-l-rose-500 hover:shadow-rose-500/5 text-rose-400',
       bgColor: 'bg-gradient-to-br from-rose-600/5 to-red-600/5',
       badge: `${metrics.rejection_percentage}% of screened`,
-      trend: stats.candidates_rejected > 0 ? `↓ ${metrics.rejection_percentage}% rejection` : '0% increase',
+      trend: stats.candidates_rejected > 0 ? `${metrics.rejection_percentage}% archived` : '0 archived',
       trendColor: 'text-slate-400',
-      emptyNudge: '0 candidates rejected. Good candidate alignment.',
+      emptyNudge: 'No candidates archived. Strong overall applicant alignment.',
     },
     {
-      title: 'Under Review',
+      title: 'Pending Decisions',
       value: stats.candidates_under_review,
       icon: AlertCircle,
       color: 'border-l-amber-500 hover:shadow-amber-500/5 text-amber-400',
       bgColor: 'bg-gradient-to-br from-amber-600/5 to-orange-600/5',
-      badge: 'Awaiting review decision',
-      trend: stats.candidates_under_review > 0 ? '+1 pending interview' : 'All reviews caught up',
+      badge: 'Awaiting recruiter action',
+      trend: stats.candidates_under_review > 0 ? `${stats.candidates_under_review} action required` : 'All reviews caught up',
       trendColor: 'text-amber-400',
-      emptyNudge: 'All reviews are completed. Good job!',
+      emptyNudge: 'All candidate reviews are up to date.',
     },
   ];
 
@@ -187,8 +187,8 @@ const Dashboard = () => {
       {/* Title */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-900 pb-5">
         <div>
-          <h2 className="text-3xl font-extrabold tracking-tight text-white bg-gradient-to-r from-slate-100 to-slate-400 bg-clip-text text-transparent">TalentLens Hiring Dashboard</h2>
-          <p className="text-sm text-slate-400 mt-1">A clear, explainable view of your hiring funnel and recruitment insights.</p>
+          <h2 className="text-3xl font-extrabold tracking-tight text-white bg-gradient-to-r from-slate-100 to-slate-400 bg-clip-text text-transparent">Hiring Operations Dashboard</h2>
+          <p className="text-sm text-slate-400 mt-1">Real-time overview of candidate applications, screening metrics, and recruitment funnel stage conversion.</p>
         </div>
         <div className="text-xs bg-slate-900/80 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-400 flex items-center space-x-2 shadow-lg backdrop-blur-md">
           <span className="h-2.5 w-2.5 bg-emerald-500 rounded-full animate-pulse shadow-lg shadow-emerald-500/50"></span>

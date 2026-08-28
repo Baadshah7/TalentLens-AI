@@ -79,7 +79,7 @@ class Candidate(Base):
     Email = Column(String, nullable=True)
     Phone = Column(String, nullable=True)
     Location = Column(String, nullable=True)
-    Resume_File_Path = Column(String, nullable=False)
+    Resume_File_Path = Column(String, nullable=True, default="")
     Upload_Date = Column(DateTime, default=datetime.datetime.utcnow)
     Processing_Status = Column(String, default="Pending") # Pending, Processing, Parsed, Failed
     Job_ID = Column(Integer, ForeignKey("jobs.Job_ID", ondelete="CASCADE"), nullable=True)

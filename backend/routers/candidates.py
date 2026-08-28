@@ -34,15 +34,18 @@ ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
 def check_file_signature(file_path: str, ext: str) -> bool:
     """Verifies file magic headers to prevent disguised uploads (e.g. EXE renamed to PDF)."""
     try:
+        norm_ext = ext.lower()
         with open(file_path, "rb") as f:
             header = f.read(4)
-        if ext == ".pdf":
+        if norm_ext == ".pdf":
             return header.startswith(b"%PDF")
-        elif ext == ".docx":
-            return header.startswith(b"PK\x03\x04")
-        elif ext == ".txt":
-            with open(file_path, "r", encoding="utf-8", errors="strict") as tf:
-                _ = tf.read(512)
+        elif norm_ext == ".docx":
+            return header.startswith(b"PK")
+        elif norm_ext == ".txt":
+            with open(file_path, "rb") as tf:
+                sample = tf.read(512)
+            if b"\x00" in sample:
+                return False
             return True
     except Exception:
         return False
@@ -1033,6 +1036,11 @@ def upload_profile_resume(
             primary_cand.Resume_File_Path = file_path
             primary_cand.Processing_Status = "Pending"
             
+        # Delete existing processing task for this candidate to avoid UNIQUE constraint violation
+        db.query(models.ResumeProcessingTask).filter(
+            models.ResumeProcessingTask.Candidate_ID == primary_cand.Candidate_ID
+        ).delete()
+        
         processing_id = str(uuid.uuid4())
         db.add(models.ResumeProcessingTask(
             Task_ID=processing_id,
