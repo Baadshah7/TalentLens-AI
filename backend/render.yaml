@@ -1,0 +1,37 @@
+services:
+  # ─── FastAPI Web Service ───────────────────────────────────────────────────
+  - type: web
+    name: talentlens-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # Render free tier: 512 MB RAM (fine for basic CRUD + auth).
+    # Upgrade to "starter" ($7/mo) if ML features (torch, spacy) are needed.
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      # Set these in the Render dashboard — do NOT commit real values:
+      - key: DATABASE_URL
+        sync: false   # set manually in Render dashboard (Neon connection string)
+      - key: JWT_SECRET_KEY
+        generateValue: true   # Render auto-generates a secure random value
+      - key: REDIS_URL
+        sync: false   # set manually (Upstash Redis URL)
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false   # set to your Netlify URL, e.g. https://talentlens.netlify.app
+
+  # ─── Celery Worker (optional, uncomment when on paid plan + Redis ready) ──
+  # - type: worker
+  #   name: talentlens-worker
+  #   runtime: docker
+  #   dockerfilePath: ./Dockerfile
+  #   dockerCommand: celery -A celery_app worker --loglevel=info --concurrency=1
+  #   plan: starter
+  #   envVars:
+  #     - key: DATABASE_URL
+  #       sync: false
+  #     - key: REDIS_URL
+  #       sync: false
+  #     - key: APP_ENV
+  #       value: production

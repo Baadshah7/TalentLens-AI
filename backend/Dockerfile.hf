@@ -1,0 +1,37 @@
+# ─── Hugging Face Spaces Dockerfile ─────────────────────────────────────────
+# HF Spaces requires:
+#   1. Non-root user named 'user' (uid 1000)
+#   2. App exposed on port 7860
+#   3. No EXPOSE needed — HF maps port 7860 automatically
+
+FROM python:3.10-slim
+
+# System deps: gcc for native exts, libpq for psycopg, libxml2/libxslt for lxml/pdfplumber
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user as required by HF Spaces
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH
+
+WORKDIR /home/user/app
+
+# Install Python deps (as user, in ~/.local)
+COPY --chown=user requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Copy application source
+COPY --chown=user . .
+
+# HF Spaces listens on port 7860
+EXPOSE 7860
+
+# Single worker to stay in free RAM limits. HF Spaces CPU basic = 2 vCPU / 16 GB RAM.
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]

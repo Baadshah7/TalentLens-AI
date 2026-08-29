@@ -1,6 +1,25 @@
-# TalentLens-AI — AI-Powered HR Recruitment MIS Portal
+# TalentLens-AI — Enterprise AI-Powered Recruitment & HR Intelligence MIS
 
-TalentLens-AI is an enterprise-style Management Information System (MIS) designed for automated resume parsing, semantic matching, explainable scoring, and recruiter decision support. It bridges automated natural language processing (NLP) pipelines with human-in-the-loop oversight, full operational audit trailing, and secure data hosting.
+<p align="center">
+  <img src="https://img.shields.io/badge/React-19.2-61DAFB?style=for-the-badge&logo=react&logoColor=black" />
+  <img src="https://img.shields.io/badge/FastAPI-0.110-009688?style=for-the-badge&logo=fastapi&logoColor=white" />
+  <img src="https://img.shields.io/badge/Python-3.10-3776AB?style=for-the-badge&logo=python&logoColor=white" />
+  <img src="https://img.shields.io/badge/Vite-8.2-646CFF?style=for-the-badge&logo=vite&logoColor=white" />
+  <img src="https://img.shields.io/badge/TailwindCSS-3.4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" />
+  <img src="https://img.shields.io/badge/spaCy-3.8-09A3D5?style=for-the-badge&logo=spacy&logoColor=white" />
+</p>
+
+TalentLens-AI is a full-stack, enterprise-grade **Management Information System (MIS)** and **Decision Support System (DSS)** designed for automated resume parsing, semantic talent matching, explainable AI scoring, and unbiased recruitment. It combines automated NLP pipelines (`spaCy`, `Sentence-Transformers`) with human-in-the-loop oversight, blind screening mode, WebRTC live interviews, and comprehensive audit governance.
+
+---
+
+### 🔑 Demo Accounts (Pre-Seeded)
+
+| Role | Email | Password | Key Capabilities |
+| :--- | :--- | :--- | :--- |
+| **Recruiter** | `recruiter@talentlens.ai` | `password123` | Resume Upload, What-If Simulation, Blind Mode, Decisions |
+| **Admin** | `admin@talentlens.ai` | `password123` | Full MIS Governance, Audit Trail, Assessment Bank Management |
+| **Candidate** | Self-Registration / OTP | *(Dynamic)* | 7-Domain 5-Level Assessments, Badges, AI Career Coach |
 
 ---
 
