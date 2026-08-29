@@ -102,7 +102,7 @@ const Login = () => {
               ? role === 'Candidate'
                 ? 'Register to practice interviews, take assessments, and get coaching.'
                 : 'Register to publish job listings and process candidates.'
-              : `Enter your ${role.toLowerCase()} credentials to access the TalentLens portal`
+              : `Enter your ${role.toLowerCase()} credentials to access the TalentLens portal.`
             }
           </p>
         </div>
@@ -217,7 +217,7 @@ const Login = () => {
             disabled={submitting}
             className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-650 hover:from-brand-500 hover:to-indigo-550 text-white rounded-xl text-xs font-bold transition-all mt-6 shadow-md shadow-brand-950/20 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center space-x-1.5"
           >
-            {submitting ? 'Please wait...' : (isRegister ? 'Register' : 'Sign In')}
+            {submitting ? 'Please wait...' : (isRegister ? 'Create Account' : 'Sign In')}
           </button>
         </form>
 

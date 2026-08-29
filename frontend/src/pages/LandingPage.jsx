@@ -367,7 +367,7 @@ const LandingPage = () => {
               <div className="flex items-center space-x-2 text-xs font-bold text-slate-400 pt-1">
                 <span className="text-slate-200">Enterprise Talent Acquisition</span>
                 <span>•</span>
-                <span className="text-cyan-400">MIS Compliance Standard</span>
+                <span className="text-cyan-400">Ethical AI Hiring Platform</span>
               </div>
             </div>
           </div>
@@ -375,7 +375,6 @@ const LandingPage = () => {
 
       </main>
 
-      {/* Cleaned Up Footer (Sign-in buttons removed as requested) */}
       <footer className="border-t border-slate-900 py-8 px-6 text-xs text-slate-400 relative z-10 bg-slate-950/90 backdrop-blur-md">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center space-x-3">

@@ -10,7 +10,7 @@ const Sidebar = ({ isOpen, onClose }) => {
   if (user?.Role === 'Candidate') {
     navItems = [
       { to: '/assessments', label: 'Skill Assessments', icon: Award },
-      { to: '/profile', label: 'Profile & Applications', icon: UserIcon },
+      { to: '/profile', label: 'My Profile', icon: UserIcon },
       { to: '/coach', label: 'AI Career Coach', icon: Sparkles },
       { to: '/interviews', label: 'Interviews', icon: Calendar },
     ];
@@ -44,7 +44,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           <div>
             <h1 className="font-semibold text-slate-100 tracking-tight leading-none text-base">TalentLens AI</h1>
             <span className="text-xs text-slate-400 font-medium">
-              {user?.Role === 'Candidate' ? 'Candidate Portal' : 'Recruitment Portal'}
+              {user?.Role === 'Candidate' ? 'Candidate Portal' : user?.Role === 'Admin' ? 'Admin Portal' : 'Recruiter Portal'}
             </span>
           </div>
         </div>

@@ -508,7 +508,7 @@ const Dashboard = () => {
                   onChange={(e) => setStartDate(e.target.value)}
                   className="bg-slate-950 border border-slate-800 p-1.5 rounded-lg text-[10px] text-slate-300 outline-none"
                 />
-                <span>➔</span>
+                <span className="text-slate-500 font-medium">to</span>
                 <input
                   type="date"
                   value={endDate}
@@ -533,7 +533,7 @@ const Dashboard = () => {
               </div>
             ) : logs.length === 0 ? (
               <div className="flex justify-center items-center h-48 text-sm text-slate-500">
-                No activity logs match the configured search filters.
+                No audit logs match your current filters.
               </div>
             ) : (
               logs.map((log) => (
@@ -552,7 +552,7 @@ const Dashboard = () => {
                     <div className="flex items-center space-x-1.5 mt-1.5">
                       <span className="inline-block h-1 w-1 rounded-full bg-indigo-500"></span>
                       <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
-                        By: {log.User_Name}
+                        Actioned by {log.User_Name}
                       </span>
                     </div>
                   </div>

@@ -4,9 +4,9 @@ import { CheckCircle2, Clock3, History, Mic, MicOff, RotateCcw, Sparkles, Trophy
 
 const starterQuestions = [
   'Tell me about a time you led a project.',
-  'Describe a difficult problem you solved at work.',
+  'Describe a challenging problem you solved at work.',
   'Why are you interested in this role?',
-  'Tell me about a time you received difficult feedback.'
+  'Tell me about a time you received constructive feedback.'
 ];
 
 const starParts = [

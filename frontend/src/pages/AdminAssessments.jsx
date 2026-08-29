@@ -590,7 +590,7 @@ const AdminAssessments = () => {
             {/* ── Draft-only notice ────────────────────────────────── */}
             <div className="flex items-center space-x-2 text-[10px] text-slate-500 font-semibold border-t border-slate-900 pt-3">
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 flex-shrink-0" />
-              <span>All AI-generated questions are saved as <strong className="text-slate-400">Drafts</strong> — review and edit in the MCQ Editor, then click Publish Live to deploy to candidates.</span>
+              <span>All AI-generated questions are saved as <strong className="text-slate-400">Drafts</strong>. Review and edit them in the MCQ Editor tab, then click <strong className="text-slate-400">Publish Live</strong> to deploy to candidates.</span>
             </div>
 
             {/* ── Progress Monitor ─────────────────────────────────── */}
@@ -783,7 +783,7 @@ const AdminAssessments = () => {
               <div className="text-center py-12 border border-slate-900/60 rounded-xl bg-slate-950/20 text-slate-500">
                 <HelpCircle className="h-8 w-8 mx-auto mb-2 text-slate-700" />
                 <p className="text-xs font-semibold">No questions found for this level.</p>
-                <p className="text-[10px] text-slate-555 mt-0.5">Click "AI Generate Draft" or switch to Domain Overview and run the Batch Generator.</p>
+                <p className="text-[10px] text-slate-555 mt-0.5">Use <strong className="text-slate-400">AI Generate Draft</strong> above, or run the Batch Generator from the Domain Overview tab.</p>
               </div>
             ) : (
               <div className="space-y-8">
