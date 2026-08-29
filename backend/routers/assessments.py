@@ -1275,6 +1275,87 @@ def get_admin_sub_level_questions(
     return {"Questions": formatted}
 
 
+@router.get('/admin/domain-stats')
+def get_admin_domain_stats(db: Session = Depends(get_db), current_user = Depends(get_current_admin)):
+    """
+    Returns rich per-domain analytics for the admin assessment dashboard.
+    Includes question bank health, attempt stats, pass rates, and candidate engagement.
+    """
+    domains = db.query(models.AssessmentDomain).all()
+    out = []
+
+    for d in domains:
+        sub_levels = (
+            db.query(models.AssessmentSubLevel)
+            .join(models.AssessmentTrack)
+            .filter(models.AssessmentTrack.Domain_ID == d.Domain_ID)
+            .order_by(models.AssessmentSubLevel.Level_Number.asc())
+            .all()
+        )
+
+        levels_data = []
+        total_attempts = 0
+        total_passed = 0
+        total_unique_candidates = set()
+
+        for sl in sub_levels:
+            pub_count = db.query(models.AssessmentQuestionNew).filter(
+                models.AssessmentQuestionNew.Sub_Level_ID == sl.Sub_Level_ID,
+                models.AssessmentQuestionNew.Is_Published == True
+            ).count()
+
+            attempts = db.query(models.AssessmentAttemptNew).filter(
+                models.AssessmentAttemptNew.Sub_Level_ID == sl.Sub_Level_ID,
+                models.AssessmentAttemptNew.Submitted_At != None
+            ).all()
+
+            attempt_count = len(attempts)
+            passed_count = sum(1 for a in attempts if a.Is_Passed)
+            unique_cands = set(a.Candidate_ID for a in attempts)
+            total_unique_candidates.update(unique_cands)
+
+            avg_score = 0.0
+            if attempts:
+                scores = [a.Score_Percent for a in attempts if a.Score_Percent is not None]
+                avg_score = sum(scores) / len(scores) if scores else 0.0
+
+            total_attempts += attempt_count
+            total_passed += passed_count
+
+            levels_data.append({
+                "Sub_Level_ID": sl.Sub_Level_ID,
+                "Level_Number": sl.Level_Number,
+                "Level_Name": sl.Name,
+                "Question_Count": pub_count,
+                "Attempt_Count": attempt_count,
+                "Passed_Count": passed_count,
+                "Pass_Rate": round((passed_count / attempt_count * 100) if attempt_count > 0 else 0.0, 1),
+                "Avg_Score": round(avg_score, 1),
+                "Unique_Candidates": len(unique_cands),
+                "Is_Live": pub_count > 0,
+            })
+
+        overall_pass_rate = round((total_passed / total_attempts * 100) if total_attempts > 0 else 0.0, 1)
+        levels_live = sum(1 for lv in levels_data if lv["Is_Live"])
+
+        out.append({
+            "Domain_ID": d.Domain_ID,
+            "Domain_Name": d.Name,
+            "Icon_Slug": d.Icon_Slug,
+            "Description": d.Description,
+            "Is_Active": d.Is_Active,
+            "Total_Levels": len(sub_levels),
+            "Levels_Live": levels_live,
+            "Total_Attempts": total_attempts,
+            "Total_Passed": total_passed,
+            "Overall_Pass_Rate": overall_pass_rate,
+            "Unique_Candidates": len(total_unique_candidates),
+            "Levels": levels_data,
+        })
+
+    return out
+
+
 @router.get('/admin/sub-levels-status')
 def get_sub_levels_status(db: Session = Depends(get_db), current_user = Depends(get_current_admin)):
     domains = db.query(models.AssessmentDomain).all()
