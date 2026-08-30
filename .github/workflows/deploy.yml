@@ -1,5 +1,6 @@
 name: Deploy Frontend to GitHub Pages
 
+# Automated deployment for TalentLens-AI Frontend to GitHub Pages
 on:
   push:
     branches:
